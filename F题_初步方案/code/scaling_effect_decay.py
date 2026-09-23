@@ -2,10 +2,10 @@
 
 路线 1（extrap_trend）：在每个实测尺度（train_1m / test_60m / test_1B）分别
 对 13 个 Loss 域拟合线性 ILR 配比效应系数，对每个 ILR 坐标拟合系数随
-log10(D) 的趋势，用留一尺度交叉验证选出斜率收缩因子 lambda，再外推到
+log10(N) 的趋势，用留一尺度交叉验证选出斜率收缩因子 lambda，再外推到
 10B/70B。
 
-路线 2（decay_fusion）：D 超过 1B 后按 w(D) = (D/1e9)^(-kappa) 把配比项向
+路线 2（decay_fusion）：N 超过 1B 后按 w(N) = (N/1e9)^(-kappa) 把配比项向
 尺度基线收缩，kappa 由实测尺度上效应幅值的衰减速度估计。
 
 纪律：est_10b / est_70b 的 Loss 是估计量，绝不参与任何拟合，仅作外部检验。
@@ -27,7 +27,7 @@ REGMIX = DATA / "A_data_value" / "regmix_tables"
 OUT = PROJECT / "outputs" / "problem1" / "scaling_bridge"
 OUT.mkdir(parents=True, exist_ok=True)
 
-SCALE_TOKENS = {
+SCALE_PARAMS = {
     "train_1m": 1.0e6,
     "test_1m": 1.0e6,
     "test_60m": 6.0e7,
@@ -76,12 +76,12 @@ def main() -> None:
         store[name] = {
             "phi": ilr(df[mcols].to_numpy()),
             "L": df[lcols].to_numpy(),
-            "logd": float(np.log10(SCALE_TOKENS[name])),
+            "logn": float(np.log10(SCALE_PARAMS[name])),
         }
     nd, nc = len(domain_names), H.shape[0]
 
     # ---- 每尺度逐域岭回归系数（目标按尺度均值中心化，原始 Loss 单位）----
-    logd_fit = np.array([store[s]["logd"] for s in COEF_SCALES])
+    logn_fit = np.array([store[s]["logn"] for s in COEF_SCALES])
     means_arr = np.stack([store[s]["L"].mean(axis=0) for s in COEF_SCALES])  # (3, nd)
     B = np.zeros((nd, 3, nc))
     for si, s in enumerate(COEF_SCALES):
@@ -91,18 +91,18 @@ def main() -> None:
             y = L[:, d] - L[:, d].mean()
             B[d, si] = np.linalg.solve(G, phi.T @ y)
 
-    # ---- 逐域基线：log10(Loss均值) 对 log10(D) 线性拟合（3 点 2 参数）----
+    # ---- 逐域基线：log10(Loss均值) 对 log10(N) 线性拟合（3 点 2 参数）----
     base_a = np.zeros(nd)
     base_b = np.zeros(nd)
     for d in range(nd):
-        base_b[d], base_a[d] = np.polyfit(logd_fit, np.log10(means_arr[:, d]), 1)
+        base_b[d], base_a[d] = np.polyfit(logn_fit, np.log10(means_arr[:, d]), 1)
 
-    def baseline_matrix(logd: float) -> np.ndarray:
-        return np.power(10.0, base_a + base_b * logd)  # (nd,) -> 广播到 (n, nd)
+    def baseline_matrix(logn: float) -> np.ndarray:
+        return np.power(10.0, base_a + base_b * logn)  # (nd,) -> 广播到 (n, nd)
 
     # ---- 三点趋势斜率（每个域每个 ILR 坐标）----
     slopes = np.zeros((nd, nc))
-    X = np.vstack([logd_fit, np.ones(3)]).T
+    X = np.vstack([logn_fit, np.ones(3)]).T
     for d in range(nd):
         coef, *_ = np.linalg.lstsq(X, B[d], rcond=None)  # X(3,2) @ coef(2,nc) ≈ B[d](3,nc)
         slopes[d] = coef[0]
@@ -113,17 +113,17 @@ def main() -> None:
         sq_all = []
         for si_held in range(3):
             keep = [i for i in range(3) if i != si_held]
-            ld2 = logd_fit[keep]
+            ld2 = logn_fit[keep]
             B2 = B[:, keep, :]
             denom = ld2[1] - ld2[0]
             slope2 = (B2[:, 1, :] - B2[:, 0, :]) / denom
-            near = 0 if abs(logd_fit[si_held] - ld2[0]) <= abs(logd_fit[si_held] - ld2[1]) else 1
-            beta_pred = B2[:, near, :] + lam * slope2 * (logd_fit[si_held] - ld2[near])
+            near = 0 if abs(logn_fit[si_held] - ld2[0]) <= abs(logn_fit[si_held] - ld2[1]) else 1
+            beta_pred = B2[:, near, :] + lam * slope2 * (logn_fit[si_held] - ld2[near])
             # 留一基线：两点 log-log 直线
             ly = np.log10(means_arr[keep, :])
             b2 = (ly[1] - ly[0]) / denom
             a2 = ly[0] - b2 * ld2[0]
-            base_pred = np.power(10.0, a2 + b2 * logd_fit[si_held])
+            base_pred = np.power(10.0, a2 + b2 * logn_fit[si_held])
             s_held = COEF_SCALES[si_held]
             phi = store[s_held]["phi"]
             L = store[s_held]["L"]
@@ -136,11 +136,11 @@ def main() -> None:
     loo_df.to_csv(OUT / "effect_lambda_selection.csv", index=False)
     lam_star = float(loo_df.loc[loo_df["loo_rmse"].idxmin(), "lambda"])
 
-    # ---- kappa：效应幅值随 log10(D) 的衰减速度（逐域斜率取中位数）----
+    # ---- kappa：效应幅值随 log10(N) 的衰减速度（逐域斜率取中位数）----
     mags = np.linalg.norm(B, axis=2)  # (nd, 3)
     kappa_list = []
     for d in range(nd):
-        sl = np.polyfit(logd_fit, np.log(mags[d] + 1e-12), 1)[0]
+        sl = np.polyfit(logn_fit, np.log(mags[d] + 1e-12), 1)[0]
         kappa_list.append(-sl)
     kappa = float(np.median(kappa_list))
     kappa_per_domain = pd.DataFrame({
@@ -161,10 +161,10 @@ def main() -> None:
     w_store = {}
     for s in ALL_SCALES:
         phi = store[s]["phi"]
-        logd = store[s]["logd"]
-        base = np.broadcast_to(baseline_matrix(logd), (phi.shape[0], nd))
+        logn = store[s]["logn"]
+        base = np.broadcast_to(baseline_matrix(logn), (phi.shape[0], nd))
         mix_frozen = phi @ beta_1b.T
-        beta_ext = beta_1b + lam_star * slopes * (logd - 9.0)
+        beta_ext = beta_1b + lam_star * slopes * (logn - 9.0)
         # 安全截断：外推系数幅值不超过 1B 系数的 CLIP_MULT 倍
         for d in range(nd):
             lim = CLIP_MULT * np.linalg.norm(beta_1b[d])
@@ -172,7 +172,7 @@ def main() -> None:
                 beta_ext[d] *= lim / np.linalg.norm(beta_ext[d])
         mix_extrap = phi @ beta_ext.T
         if kappa > 0:
-            w = float(min(1.0, (SCALE_TOKENS[s] / 1e9) ** (-kappa)))
+            w = float(min(1.0, (SCALE_PARAMS[s] / 1e9) ** (-kappa)))
         else:
             w = 1.0  # 效应未观测到衰减，不收缩
         w_store[s] = w
@@ -243,7 +243,7 @@ def main() -> None:
     print("=== 配比效应标度律 + 置信衰减 ===")
     print(f"lambda* = {lam_star}（留一尺度 CV 选出）")
     print(f"kappa（效应幅值衰减指数，中位数）= {kappa:.4f}")
-    print("各尺度置信权重 w(D)：", {k: round(v, 4) for k, v in w_store.items()})
+    print("各参数尺度置信权重 w(N)：", {k: round(v, 4) for k, v in w_store.items()})
     print()
     print("效应幅值（前 5 域）：")
     print(kappa_per_domain.head(5).to_string(index=False))
