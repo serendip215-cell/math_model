@@ -10,9 +10,11 @@ F题/
 ├── restore_large_files.ps1        大文件合并脚本
 ├── F题_清洗后/                    建模输入数据
 └── F题_初步方案/
-    ├── code/problem1.py          问题一分析入口
-    ├── outputs/problem1/          按方法分开的缓存、表格和图表
-    └── reports/                   按数据处理、方案、结果、验收分类的报告
+    ├── code/problem1/             问题一代码
+    ├── code/problem2/             问题二代码预留目录
+    ├── code/数据处理/             全题通用清洗与审计脚本
+    ├── outputs/problem1/          问题一缓存、表格和图表
+    └── reports/问题一、问题二/    各问题独立的方案、结果与验证材料
 ```
 
 ## 环境准备
@@ -33,7 +35,7 @@ python -m venv .venv
 ## 运行问题一
 
 ```powershell
-.\.venv\Scripts\python.exe .\F题_初步方案\code\problem1.py
+.\.venv\Scripts\python.exe .\F题_初步方案\code\problem1\problem1.py
 ```
 
 脚本从自身位置定位 `F题_清洗后` 和 `F题_初步方案`，因此仓库可以放在任意目录。运行会读取质量信号 JSONL 和 RegMix 配比、Loss 表，生成或覆盖以下产物：
@@ -43,17 +45,17 @@ python -m venv .venv
 | `F题_初步方案/outputs/problem1/quality/` | 质量评分与冲突分析的缓存、结果表和图表 |
 | `F题_初步方案/outputs/problem1/mixture/` | 配比模型的结果表和图表 |
 | `F题_初步方案/outputs/problem1/run_summary.json` | 问题一整体运行摘要 |
-| `F题_初步方案/reports/结果分析/RESULTS_REPORT_PROBLEM1.md` | 自动生成的问题一结果报告 |
+| `F题_初步方案/reports/问题一/结果分析/RESULTS_REPORT_PROBLEM1.md` | 自动生成的问题一结果报告 |
 
 命令正常结束时会打印包含 `quality_records`、`selected_mixture_model`、`test_1m_rmse` 的 JSON 摘要。首次运行需处理较大的 JSONL 文件，耗时和内存取决于机器配置。再次运行会复用已有的质量特征缓存；如果输入质量数据发生变化，应先备份或移走 `outputs/problem1/quality/cache/` 中的 `quality_features.csv` 和 `quality_ingest_audit.json`，再运行脚本以重新生成缓存。现有结果文件会被覆盖，修改模型前请自行备份。
 
 ## 方案与数据口径
 
-- `plan.md` 和 `reports/方案设计/ANALYSIS_MODELING_REPORT_V2.md`：四问的总体方案。
-- `reports/方案设计/PROBLEM1_PLAN.md`：问题一的输入、模型和验证设计。
-- `reports/方案设计/PROBLEM1_METHOD_PIPELINE.md`：问题一从数据准备到跨尺度处理的完整方法链与结果索引。
+- `plan.md` 和 `reports/总体方案/ANALYSIS_MODELING_REPORT_V2.md`：四问的总体方案。
+- `reports/问题一/`：问题一的方案、结果和验证材料。
+- `reports/问题二/`：问题二的方案及后续结果、验证材料。
 - `F题_清洗后/题面数据说明/数据说明_可见层.md`：用于建模的数据说明。
-- `reports/结果分析/RESULTS_REPORT_PROBLEM1.md`：问题一的已有分析结果。问题二至四尚无统一运行入口。
+- `reports/问题一/结果分析/RESULTS_REPORT_PROBLEM1.md`：问题一的已有分析结果。问题二至四尚无统一运行入口。
 - `reports/README.md`：按用途查找报告、清洗审计和验证记录的索引。
 
-`code/clean_data.py`、`clean_parquet_step1.py`、`finalize_clean_data.py` 和 `sanitize_problem_materials.py` 是此前的数据准备与审计脚本。仓库已包含清洗后的建模数据；这些脚本不是问题一复现步骤的一部分，其中部分脚本仍含原作者本机路径，不能作为克隆后的通用入口直接运行。
+`code/数据处理/` 中是此前的数据准备与审计脚本。仓库已包含清洗后的建模数据；这些脚本不是问题一复现步骤的一部分，其中部分脚本仍含原作者本机路径，不能作为克隆后的通用入口直接运行。

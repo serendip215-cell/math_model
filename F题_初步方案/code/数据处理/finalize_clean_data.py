@@ -3,8 +3,8 @@ import json
 import shutil
 import pandas as pd
 
-clean_root = Path(__file__).resolve().parents[2] / "F题_清洗后"
-audit = Path(__file__).resolve().parents[1] / "reports" / "数据处理" / "F题_清洗审计"
+clean_root = Path(__file__).resolve().parents[3] / "F题_清洗后"
+audit = Path(__file__).resolve().parents[2] / "reports" / "数据处理" / "F题_清洗审计"
 quarantine = audit / "quarantine_invalid_json"
 quarantine.mkdir(parents=True, exist_ok=True)
 

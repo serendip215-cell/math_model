@@ -24,7 +24,7 @@ from sklearn.preprocessing import StandardScaler, PolynomialFeatures
 from scipy.linalg import helmert
 
 HERE = Path(__file__).resolve().parent
-PROJECT = HERE.parent
+PROJECT = HERE.parents[1]
 DATA = PROJECT.parent / "F题_清洗后"
 REGMIX = DATA / "A_data_value" / "regmix_tables"
 OUT = PROJECT / "outputs" / "problem1" / "scaling_bridge"

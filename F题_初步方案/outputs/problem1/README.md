@@ -11,4 +11,4 @@
 | `figure_manifest.csv` | 保留图的数据来源、用途及解释边界 |
 | `run_summary.json` | 问题一整体运行摘要 |
 
-完整解释和局限见 `../../reports/结果分析/RESULTS_REPORT_PROBLEM1.md`。先运行数值脚本更新结果，最后运行 `../../code/problem1_figures.py` 生成论文图并清理被替代的旧图。
+完整解释和局限见 `../../reports/问题一/结果分析/RESULTS_REPORT_PROBLEM1.md`。先运行数值脚本更新结果，最后运行 `../../code/problem1/problem1_figures.py` 生成论文图并清理被替代的旧图。

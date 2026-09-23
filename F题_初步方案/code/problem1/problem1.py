@@ -25,7 +25,7 @@ from sklearn.preprocessing import PolynomialFeatures, StandardScaler
 
 SEED = 20260923
 RNG = np.random.default_rng(SEED)
-PROJECT = Path(__file__).resolve().parents[1]
+PROJECT = Path(__file__).resolve().parents[2]
 DATA = PROJECT.parent / "F题_清洗后"
 A = DATA / "A_data_value"
 OUTPUT_ROOT = PROJECT / "outputs" / "problem1"
@@ -1057,10 +1057,10 @@ A16 共提供 {len(mapping)} 个配方域映射，其中 {int(mapping['mapping_a
 ## 可复现运行方式
 
 ```powershell
-python F题_初步方案/code/problem1.py
+python F题_初步方案/code/problem1/problem1.py
 ```
 """
-    (PROJECT / "reports" / "结果分析" / "RESULTS_REPORT_PROBLEM1.md").write_text(report, encoding="utf-8")
+    (PROJECT / "reports" / "问题一" / "结果分析" / "RESULTS_REPORT_PROBLEM1.md").write_text(report, encoding="utf-8")
 
 
 def main():

@@ -22,8 +22,8 @@ from typing import Any, Iterable
 import pandas as pd
 
 
-WORKSPACE = Path(__file__).resolve().parents[2]
-QUESTION_DIR = WORKSPACE / "第二十三届中国研究生数学建模竞赛 - 中文题目" / "中文题目" / "F题"
+QUESTION_DIR = Path(__file__).resolve().parents[3]
+WORKSPACE = QUESTION_DIR.parent
 SOURCE_DIR = QUESTION_DIR / "real_attachments"
 OUTPUT_DIR = QUESTION_DIR / "F题_清洗后"
 

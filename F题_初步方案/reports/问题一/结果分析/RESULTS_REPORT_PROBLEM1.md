@@ -305,13 +305,13 @@ test_60m −0.012→0.120，test_1B 0.817。est 尺度反转幅度从主模型�
 
 ```powershell
 # 虚拟环境：match_model/.venv（Python 3.12.10）
-python F题_初步方案/code/problem1.py                # 主流程：质量评分 + 配比模型 + 推荐配比
-python F题_初步方案/code/problem1_enhancement.py    # 增强验证 6 模块
-python F题_初步方案/code/inferred_quality_proxy.py  # inferred 域 Q 补全 + 消融
-python F题_初步方案/code/scaling_law_bridge.py      # 标度律桥接（纯 D_eff / 组合模型）
-python F题_初步方案/code/scaling_effect_decay.py    # 效应标度律 + 置信衰减
-python F题_初步方案/code/refinement_three.py        # 三项稳健性升级
-python F题_初步方案/code/problem1_figures.py        # 最后运行：生成论文图并清理被替代旧图
+python F题_初步方案/code/problem1/problem1.py                # 主流程：质量评分 + 配比模型 + 推荐配比
+python F题_初步方案/code/problem1/problem1_enhancement.py    # 增强验证 6 模块
+python F题_初步方案/code/problem1/inferred_quality_proxy.py  # inferred 域 Q 补全 + 消融
+python F题_初步方案/code/problem1/scaling_law_bridge.py      # 标度律桥接（纯 D_eff / 组合模型）
+python F题_初步方案/code/problem1/scaling_effect_decay.py    # 效应标度律 + 置信衰减
+python F题_初步方案/code/problem1/refinement_three.py        # 三项稳健性升级
+python F题_初步方案/code/problem1/problem1_figures.py        # 最后运行：生成论文图并清理被替代旧图
 ```
 
 ## 图表口径审计

@@ -21,7 +21,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler, PolynomialFeatures
 
 HERE = Path(__file__).resolve().parent
-PROJECT = HERE.parent
+PROJECT = HERE.parents[1]
 DATA = PROJECT.parent / "F题_清洗后"
 REGMIX = DATA / "A_data_value" / "regmix_tables"
 QUALITY_SCORES = PROJECT / "outputs" / "problem1" / "quality" / "results" / "quality_sample_scores.csv"

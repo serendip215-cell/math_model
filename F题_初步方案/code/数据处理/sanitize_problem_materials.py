@@ -6,10 +6,10 @@ import shutil
 import pdfplumber
 from pdfplumber.utils import extract_text
 
-F_ROOT = Path(__file__).resolve().parents[2]
+F_ROOT = Path(__file__).resolve().parents[3]
 RAW = F_ROOT / "real_attachments"
 CLEAN = F_ROOT / "F题_清洗后"
-PLAN = Path(__file__).resolve().parents[1]
+PLAN = Path(__file__).resolve().parents[2]
 AUDIT = PLAN / "reports" / "数据处理" / "F题_注入审计"
 AUDIT_INPUT = AUDIT / "输入副本"
 AUDIT_QUAR = AUDIT / "隔离文本"

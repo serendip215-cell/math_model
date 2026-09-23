@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 
 
-PROJECT = Path(__file__).resolve().parents[1]
+PROJECT = Path(__file__).resolve().parents[2]
 P1 = PROJECT / "outputs" / "problem1"
 QUALITY = P1 / "quality"
 MIXTURE = P1 / "mixture"

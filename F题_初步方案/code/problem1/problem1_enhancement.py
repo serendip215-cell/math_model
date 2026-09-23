@@ -12,7 +12,7 @@ from scipy.stats import spearmanr, pearsonr
 
 SEED = 20260923
 RNG = np.random.default_rng(SEED)
-PROJECT = Path(__file__).resolve().parents[1]
+PROJECT = Path(__file__).resolve().parents[2]
 DATA = PROJECT.parent / "F题_清洗后"
 A = DATA / "A_data_value"
 P1 = PROJECT / "outputs" / "problem1"

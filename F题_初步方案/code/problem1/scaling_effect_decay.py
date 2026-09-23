@@ -21,7 +21,7 @@ from scipy.linalg import helmert
 from scipy.stats import spearmanr
 
 HERE = Path(__file__).resolve().parent
-PROJECT = HERE.parent
+PROJECT = HERE.parents[1]
 DATA = PROJECT.parent / "F题_清洗后"
 REGMIX = DATA / "A_data_value" / "regmix_tables"
 OUT = PROJECT / "outputs" / "problem1" / "scaling_bridge"

@@ -23,7 +23,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import make_pipeline
 
 HERE = Path(__file__).resolve().parent
-PROJECT = HERE.parent
+PROJECT = HERE.parents[1]
 DATA = PROJECT.parent / "F题_清洗后"
 REGMIX = DATA / "A_data_value" / "regmix_tables"
 MAPPING = DATA / "A_data_value" / "domain_mapping_guide.csv"

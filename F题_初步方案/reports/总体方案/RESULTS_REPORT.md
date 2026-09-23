@@ -3,8 +3,8 @@
 ## 已完成
 
 - 问题一的质量评价、指标冲突分析和训练配比响应模型已完成全量运行。
-- 详细结果、假设边界及适用范围见 [RESULTS_REPORT_PROBLEM1.md](RESULTS_REPORT_PROBLEM1.md)。
-- 可复现代码位于 `code/problem1.py`，数值结果与图形按方法保存在 `outputs/problem1/quality/` 和 `outputs/problem1/mixture/`。
+- 详细结果、假设边界及适用范围见 [问题一结果报告](../问题一/结果分析/RESULTS_REPORT_PROBLEM1.md)。
+- 可复现代码位于 `code/problem1/`，数值结果与图形按方法保存在 `outputs/problem1/quality/` 和 `outputs/problem1/mixture/`。
 
 ## 安全边界
 

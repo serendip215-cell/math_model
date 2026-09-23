@@ -259,12 +259,12 @@ train_1m 上评估——Q 的构造与模型评估共享同一份数据，存在
 | 步骤 | 代码 | 关键产物 |
 | --- | --- | --- |
 | 0 | restore_large_files.ps1 | `F题_清洗后/`、`reports/数据处理/F题_注入审计/PDF_INJECTION_AUDIT.md` |
-| 1–5 | code/problem1.py | `outputs/problem1/quality/`、`outputs/problem1/mixture/`、`run_summary.json` |
-| 6 | code/problem1_enhancement.py | `outputs/problem1/enhancement/` |
-| 7 | code/inferred_quality_proxy.py | `outputs/problem1/inferred_quality/` |
-| 8 | code/scaling_law_bridge.py、code/scaling_effect_decay.py | `outputs/problem1/scaling_bridge/` |
-| 9 | code/refinement_three.py | `outputs/problem1/refinement/`（crossfit_quality_ablation.json、conflict_resolution_*.csv/json、regularization_path.csv/json） |
-| 验证 | — | `reports/验证验收/VERIFY_REPORT_PROBLEM1.md`、`reports/结果分析/RESULTS_REPORT_PROBLEM1.md` |
+| 1–5 | code/problem1/problem1.py | `outputs/problem1/quality/`、`outputs/problem1/mixture/`、`run_summary.json` |
+| 6 | code/problem1/problem1_enhancement.py | `outputs/problem1/enhancement/` |
+| 7 | code/problem1/inferred_quality_proxy.py | `outputs/problem1/inferred_quality/` |
+| 8 | code/problem1/scaling_law_bridge.py、code/problem1/scaling_effect_decay.py | `outputs/problem1/scaling_bridge/` |
+| 9 | code/problem1/refinement_three.py | `outputs/problem1/refinement/`（crossfit_quality_ablation.json、conflict_resolution_*.csv/json、regularization_path.csv/json） |
+| 验证 | — | `reports/问题一/验证验收/VERIFY_REPORT_PROBLEM1.md`、`reports/问题一/结果分析/RESULTS_REPORT_PROBLEM1.md` |
 
 ## 可直接写进论文的 6 个创新点
 
@@ -296,4 +296,4 @@ train_1m 上评估——Q 的构造与模型评估共享同一份数据，存在
 - 问题二使用稳健参考配比和支持域内相对响应 (Delta_p(p))，不把某一尺度的样本内质心
   当作跨尺度硬约束。
 - 10B/70B 为估计表且排序强度接近零。问题二对 1B 以上配比效应采用向零收缩和区间扩张，
-  不继承“反转已消除”的表述。完整接口见 `PROBLEM2_PLAN.md`。
+  不继承“反转已消除”的表述。完整接口见 [问题二方案](../../问题二/方案设计/PROBLEM2_PLAN.md)。

@@ -12,11 +12,11 @@ workflow:
 
 | step | skills | 当前目标 | 预期产物 |
 | --- | --- | --- | --- |
-| 1 | `2analysis-modeling` | 题意拆解、数据审计、模型与验证设计 | `reports/方案设计/ANALYSIS_MODELING_REPORT.md` |
-| 2 | `3coding-visual` | 编写 Python，完成 EDA、拟合、优化和图表 | `code/`、`outputs/problemN/`、`reports/结果分析/RESULTS_REPORT.md` |
+| 1 | `2analysis-modeling` | 题意拆解、数据审计、模型与验证设计 | `reports/总体方案/ANALYSIS_MODELING_REPORT.md`、`reports/问题N/方案设计/` |
+| 2 | `3coding-visual` | 编写 Python，完成 EDA、拟合、优化和图表 | `code/problemN/`、`outputs/problemN/`、`reports/问题N/结果分析/` |
 | 3 | `4drawio` | 绘制总技术路线和四问依赖图 | `figures/*.drawio`、`figures/*.pdf` |
 | 4 | `5writing` | 撰写中文竞赛论文 | `paper/` |
-| 5 | `6verity` | 检查数据、公式、代码、图表和论文一致性 | `reports/验证验收/VERIFY_REPORT.md` |
+| 5 | `6verity` | 检查数据、公式、代码、图表和论文一致性 | `reports/问题N/验证验收/`、`reports/总体方案/VERIFY_REPORT.md` |
 
 ## 总体建模方向
 

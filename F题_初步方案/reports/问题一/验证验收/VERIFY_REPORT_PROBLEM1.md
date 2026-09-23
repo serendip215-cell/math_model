@@ -21,7 +21,7 @@
 
 - 按 `2analysis-modeling`、`3coding-visual` 与 `6verity` 数模技能检查题意对应关系、输入、模型选择、结果表和全部 13 张保留 PDF。
 - 输入为 A1–A3 的 272,505 条质量信号，以及 A4–A15 的配比和 Loss 表。对三个质量源文件重新计算 SHA-256，均与 `quality_ingest_audit.json` 一致；JSON 解析错误 0 条，文件内重复 ID 0 条。
-- 重新运行 `code/problem1.py`，并独立从 `mixture_predictions.csv` 计算各尺度平均 Loss RMSE；与 `mixture_model_metrics.csv` 和 `run_summary.json` 逐项一致。质量分数 272,505 条均在 [0,1] 内；组内权重各自求和为 1，全局权重求和为 1。
+- 重新运行 `code/problem1/problem1.py`，并独立从 `mixture_predictions.csv` 计算各尺度平均 Loss RMSE；与 `mixture_model_metrics.csv` 和 `run_summary.json` 逐项一致。质量分数 272,505 条均在 [0,1] 内；组内权重各自求和为 1，全局权重求和为 1。
 - 从原始 A4–A5 重新计算标准化实测目标并取前 10% 配方，所得 17 维质心与 `recommended_mixture.csv` 的主推荐逐分量一致（最大绝对差小于 1e-12）；配比非负且和为 1。A16 可观测映射为 6/17，冲突画像各类型占比按域求和为 1。
 
 ## 已发现并修正的问题
@@ -67,4 +67,4 @@
 3. 主推荐已有 Bootstrap 区间且比边界优化稳健，但未经过按该配比重新训练模型的实验，只能作为下一轮候选。
 4. 组合联合扰动、预测区间覆盖率和 A1 文本人工盲评仍未完成。
 
-复现入口：在项目根目录先运行数值脚本，最后运行 `python F题_初步方案/code/problem1_figures.py` 生成经审计图表。结果说明见 `../结果分析/RESULTS_REPORT_PROBLEM1.md`。`ad_en` 的二分类 logits 定义按 [SlimPajama Meta-rater 官方数据说明](https://huggingface.co/datasets/opendatalab/SlimPajama-Meta-rater/blob/main/README.md) 核对：第二类表示无广告，因此代码转为第二类概率后作收益型信号是合理的。
+复现入口：在项目根目录先运行数值脚本，最后运行 `python F题_初步方案/code/problem1/problem1_figures.py` 生成经审计图表。结果说明见 `../结果分析/RESULTS_REPORT_PROBLEM1.md`。`ad_en` 的二分类 logits 定义按 [SlimPajama Meta-rater 官方数据说明](https://huggingface.co/datasets/opendatalab/SlimPajama-Meta-rater/blob/main/README.md) 核对：第二类表示无广告，因此代码转为第二类概率后作收益型信号是合理的。
