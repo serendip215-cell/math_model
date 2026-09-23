@@ -1,0 +1,12 @@
+{
+  "baseline_quadratic_ilr_ridge": {
+    "test_1m_rmse": 0.23678644158505727,
+    "test_1m_spearman": 0.6623719672693978
+  },
+  "quality_enhanced_completed_q": {
+    "test_1m_rmse": 0.2253848941674688,
+    "test_1m_spearman": 0.6960359922178987
+  },
+  "rmse_improvement_pct": 4.815118357819008,
+  "quality_adopted_threshold_2pct": true
+}

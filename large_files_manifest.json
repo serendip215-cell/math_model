@@ -1,0 +1,59 @@
+[
+  {
+    "path": "F题_清洗后/A_data_value/regmix_domain_sample.jsonl",
+    "bytes": 713323386,
+    "sha256": "6289d410286422cab996eb9193e656dd25e9d6980a289539aab9ec98a1dc6e5f",
+    "parts": [
+      "F题_清洗后/A_data_value/regmix_domain_sample.jsonl.part000",
+      "F题_清洗后/A_data_value/regmix_domain_sample.jsonl.part001",
+      "F题_清洗后/A_data_value/regmix_domain_sample.jsonl.part002",
+      "F题_清洗后/A_data_value/regmix_domain_sample.jsonl.part003",
+      "F题_清洗后/A_data_value/regmix_domain_sample.jsonl.part004",
+      "F题_清洗后/A_data_value/regmix_domain_sample.jsonl.part005",
+      "F题_清洗后/A_data_value/regmix_domain_sample.jsonl.part006",
+      "F题_清洗后/A_data_value/regmix_domain_sample.jsonl.part007",
+      "F题_清洗后/A_data_value/regmix_domain_sample.jsonl.part008"
+    ]
+  },
+  {
+    "path": "F题_清洗后/A_data_value/slimpajama_quality_extended/github_part-6777d8857c6e-000275.jsonl",
+    "bytes": 235323645,
+    "sha256": "62e4d7ff725f7fe8c4aa888b180443d55500100cb247776fe553f6cd5f1062b4",
+    "parts": [
+      "F题_清洗后/A_data_value/slimpajama_quality_extended/github_part-6777d8857c6e-000275.jsonl.part000",
+      "F题_清洗后/A_data_value/slimpajama_quality_extended/github_part-6777d8857c6e-000275.jsonl.part001",
+      "F题_清洗后/A_data_value/slimpajama_quality_extended/github_part-6777d8857c6e-000275.jsonl.part002"
+    ]
+  },
+  {
+    "path": "F题_清洗后/A_data_value/slimpajama_quality_signal_sample.jsonl",
+    "bytes": 429084437,
+    "sha256": "e128bb44639bd44bd477f72950820fabdfb4bbd8b22143f8d98528cbb64fe148",
+    "parts": [
+      "F题_清洗后/A_data_value/slimpajama_quality_signal_sample.jsonl.part000",
+      "F题_清洗后/A_data_value/slimpajama_quality_signal_sample.jsonl.part001",
+      "F题_清洗后/A_data_value/slimpajama_quality_signal_sample.jsonl.part002",
+      "F题_清洗后/A_data_value/slimpajama_quality_signal_sample.jsonl.part003",
+      "F题_清洗后/A_data_value/slimpajama_quality_signal_sample.jsonl.part004",
+      "F题_清洗后/A_data_value/slimpajama_quality_signal_sample.jsonl.part005"
+    ]
+  },
+  {
+    "path": "real_attachments/A_data_value/regmix_domain_sample.jsonl.xz",
+    "bytes": 165293312,
+    "sha256": "4fa8eea3d39c7f789abd62a456c88c9d4e032c58a0fff4c27853b9f50e5d7b04",
+    "parts": [
+      "real_attachments/A_data_value/regmix_domain_sample.jsonl.xz.part000",
+      "real_attachments/A_data_value/regmix_domain_sample.jsonl.xz.part001"
+    ]
+  },
+  {
+    "path": "real_attachments/A_data_value/slimpajama_quality_signal_sample.jsonl.xz",
+    "bytes": 103349792,
+    "sha256": "14a4eeec4c7d98efd78942ddd9c1329640527f2108e73227be449bc1a8dbe579",
+    "parts": [
+      "real_attachments/A_data_value/slimpajama_quality_signal_sample.jsonl.xz.part000",
+      "real_attachments/A_data_value/slimpajama_quality_signal_sample.jsonl.xz.part001"
+    ]
+  }
+]

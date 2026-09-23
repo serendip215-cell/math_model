@@ -1,0 +1,35 @@
+{
+  "lambda_selection": [
+    {
+      "lambda": 0.0,
+      "loo_rmse": 2.8314054835425266
+    },
+    {
+      "lambda": 0.25,
+      "loo_rmse": 2.8235050341713825
+    },
+    {
+      "lambda": 0.5,
+      "loo_rmse": 2.8187059342914913
+    },
+    {
+      "lambda": 0.75,
+      "loo_rmse": 2.817024034383002
+    },
+    {
+      "lambda": 1.0,
+      "loo_rmse": 2.8184649149555474
+    }
+  ],
+  "lambda_star": 0.75,
+  "kappa_median": 0.15025492404294674,
+  "w_by_scale": {
+    "train_1m": 1.0,
+    "test_1m": 1.0,
+    "test_60m": 1.0,
+    "test_1B": 1.0,
+    "est_10b": 0.7075303532603517,
+    "est_70b": 0.5281593033501875
+  },
+  "discipline": "est_10b/est_70b never used in fitting; external check only"
+}

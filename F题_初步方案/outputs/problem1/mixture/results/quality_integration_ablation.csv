@@ -1,0 +1,4 @@
+﻿model,cv_mse,test_1m_macro_rmse,test_1m_pooled_rmse,quality_features,selected
+linear_ilr_ridge,0.19437001203884102,0.25889686473009,0.3994517460381332,False,False
+quadratic_ilr_ridge,0.14714938872049638,0.23194974951806316,0.33256036462835376,False,True
+quadratic_ilr_ridge_quality,0.1360480723557521,0.2344268737651138,0.33118767075914224,True,False

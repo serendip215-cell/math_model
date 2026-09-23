@@ -1,0 +1,14 @@
+{
+  "quality_records": 272505,
+  "selected_mixture_model": "quadratic_ilr_ridge",
+  "quality_features_adopted": false,
+  "test_1m_rmse": 0.23194974951806316,
+  "test_1m_pooled_domain_rmse": 0.33256036462835376,
+  "recommended_max_share": 0.15132765428752817,
+  "recommendation_rule": "centroid_of_best_observed_10pct",
+  "outputs": "outputs/problem1",
+  "quality_results": "outputs/problem1/quality/results",
+  "mixture_results": "outputs/problem1/mixture/results",
+  "quality_figures": "outputs/problem1/quality/figures",
+  "mixture_figures": "outputs/problem1/mixture/figures"
+}

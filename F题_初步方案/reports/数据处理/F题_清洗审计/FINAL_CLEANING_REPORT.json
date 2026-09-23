@@ -1,0 +1,14 @@
+{
+  "invalid_json_removed_from_modeling_copy": 4,
+  "invalid_json_quarantine": "D:\\数模\\F题_初步方案\\reports\\F题_清洗审计\\quarantine_invalid_json",
+  "invalid_json_relative_paths": [
+    "C_efficiency_evolution\\detailed_results\\DreadPoor_Winter_Dawn-8B-TIES\\results_2025-02-13T18-27-04.338360.json",
+    "C_efficiency_evolution\\detailed_results\\FINGU-AI_Chocolatine-Fusion-14B\\results_2025-02-13T18-27-04.338360.json",
+    "C_efficiency_evolution\\detailed_results\\Intel_neural-chat-7b-v3-3\\results_2025-02-13T18-27-04.338360.json",
+    "C_efficiency_evolution\\detailed_results\\L-RAGE_3_PRYMMAL-ECE-7B-SLERP-V1\\results_2025-02-13T18-27-04.338360.json"
+  ],
+  "params_negative_one_to_missing": 3,
+  "remaining_parquet_rows": 4576,
+  "remaining_parquet_columns": 36,
+  "rule": "仅移除无法解析的 JSON；-1 参数量按未知值处理为缺失；未自动删除其他异常观测。"
+}

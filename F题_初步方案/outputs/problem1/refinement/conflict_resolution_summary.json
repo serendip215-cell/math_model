@@ -1,0 +1,9 @@
+{
+  "K_threshold_90pct": 0.2713518749361697,
+  "spearman_original_vs_weighted": 1.0,
+  "spearman_original_vs_penalized": 1.0,
+  "spearman_weighted_vs_penalized": 1.0,
+  "conclusion": "域排序稳定（Spearman > 0.95）→ 冲突降权不改变质量排序，仅微调数值",
+  "max_pct_change_weighted": 1.0965312721808183,
+  "max_pct_change_penalized": 11.64768576308059
+}

@@ -1,0 +1,344 @@
+{
+  "source": "D:\\数模\\第二十三届中国研究生数学建模竞赛 - 中文题目\\中文题目\\F题\\real_attachments\\C_efficiency_evolution\\data\\train-00000-of-00001.parquet",
+  "source_sha256": "f13a7061e63133bc8745d89f8c7a56148584940ede22d3b27e21cad1e078dca5",
+  "clean_parquet_sha256": "a4862a00f7a584224d0cf8a61ae6da9f7a0e0f84e65c9ec7cfe4cfb78d80b41a",
+  "source_file_bytes": 1109997,
+  "parquet_row_groups": 5,
+  "source_shape": {
+    "rows": 4576,
+    "columns": 36
+  },
+  "clean_shape": {
+    "rows": 4576,
+    "columns": 36
+  },
+  "removed_all_empty_rows": 0,
+  "removed_all_empty_columns": 0,
+  "removed_duplicate_rows": 0,
+  "columns": [
+    {
+      "name": "eval_name",
+      "dtype": "str"
+    },
+    {
+      "name": "Precision",
+      "dtype": "str"
+    },
+    {
+      "name": "Type",
+      "dtype": "str"
+    },
+    {
+      "name": "T",
+      "dtype": "str"
+    },
+    {
+      "name": "Weight type",
+      "dtype": "str"
+    },
+    {
+      "name": "Architecture",
+      "dtype": "str"
+    },
+    {
+      "name": "Model",
+      "dtype": "str"
+    },
+    {
+      "name": "fullname",
+      "dtype": "str"
+    },
+    {
+      "name": "Model sha",
+      "dtype": "str"
+    },
+    {
+      "name": "Average ⬆️",
+      "dtype": "float64"
+    },
+    {
+      "name": "Hub License",
+      "dtype": "str"
+    },
+    {
+      "name": "Hub ❤️",
+      "dtype": "int64"
+    },
+    {
+      "name": "#Params (B)",
+      "dtype": "float64"
+    },
+    {
+      "name": "Available on the hub",
+      "dtype": "bool"
+    },
+    {
+      "name": "MoE",
+      "dtype": "bool"
+    },
+    {
+      "name": "Flagged",
+      "dtype": "bool"
+    },
+    {
+      "name": "Chat Template",
+      "dtype": "bool"
+    },
+    {
+      "name": "CO₂ cost (kg)",
+      "dtype": "float64"
+    },
+    {
+      "name": "IFEval Raw",
+      "dtype": "float64"
+    },
+    {
+      "name": "IFEval",
+      "dtype": "float64"
+    },
+    {
+      "name": "BBH Raw",
+      "dtype": "float64"
+    },
+    {
+      "name": "BBH",
+      "dtype": "float64"
+    },
+    {
+      "name": "MATH Lvl 5 Raw",
+      "dtype": "float64"
+    },
+    {
+      "name": "MATH Lvl 5",
+      "dtype": "float64"
+    },
+    {
+      "name": "GPQA Raw",
+      "dtype": "float64"
+    },
+    {
+      "name": "GPQA",
+      "dtype": "float64"
+    },
+    {
+      "name": "MUSR Raw",
+      "dtype": "float64"
+    },
+    {
+      "name": "MUSR",
+      "dtype": "float64"
+    },
+    {
+      "name": "MMLU-PRO Raw",
+      "dtype": "float64"
+    },
+    {
+      "name": "MMLU-PRO",
+      "dtype": "float64"
+    },
+    {
+      "name": "Merged",
+      "dtype": "bool"
+    },
+    {
+      "name": "Official Providers",
+      "dtype": "bool"
+    },
+    {
+      "name": "Upload To Hub Date",
+      "dtype": "str"
+    },
+    {
+      "name": "Submission Date",
+      "dtype": "str"
+    },
+    {
+      "name": "Generation",
+      "dtype": "int64"
+    },
+    {
+      "name": "Base Model",
+      "dtype": "str"
+    }
+  ],
+  "missing_values": {},
+  "numeric_summary": {
+    "Average ⬆️": {
+      "count": 4576.0,
+      "mean": 21.8148630063,
+      "std": 10.8020924128,
+      "min": 0.7378506309,
+      "25%": 13.9364741403,
+      "50%": 21.9504257399,
+      "75%": 29.2584236653,
+      "max": 52.0813839788
+    },
+    "Hub ❤️": {
+      "count": 4576.0,
+      "mean": 49.0201048951,
+      "std": 265.9901588838,
+      "min": 0.0,
+      "25%": 0.0,
+      "50%": 1.0,
+      "75%": 5.0,
+      "max": 6093.0
+    },
+    "#Params (B)": {
+      "count": 4576.0,
+      "mean": 11.237100743,
+      "std": 14.661320159,
+      "min": -1.0,
+      "25%": 4.513,
+      "50%": 8.03,
+      "75%": 12.248,
+      "max": 140.63
+    },
+    "CO₂ cost (kg)": {
+      "count": 4576.0,
+      "mean": 3.9696431128,
+      "std": 10.9647035916,
+      "min": 0.0392451731,
+      "25%": 1.1455788002,
+      "50%": 1.5351351192,
+      "75%": 2.6500741236,
+      "max": 186.6104433274
+    },
+    "IFEval Raw": {
+      "count": 4576.0,
+      "mean": 0.4558448623,
+      "std": 0.2048755037,
+      "min": 0.0,
+      "25%": 0.2770789838,
+      "50%": 0.451166793,
+      "75%": 0.6263846594,
+      "max": 0.8997581971
+    },
+    "IFEval": {
+      "count": 4576.0,
+      "mean": 45.5844862343,
+      "std": 20.4875503653,
+      "min": 0.0,
+      "25%": 27.7078983763,
+      "50%": 45.1166792998,
+      "75%": 62.638465937,
+      "max": 89.9758197139
+    },
+    "BBH Raw": {
+      "count": 4576.0,
+      "mean": 0.4866422947,
+      "std": 0.1140224201,
+      "min": 0.2178209789,
+      "25%": 0.4039744066,
+      "50%": 0.5037477805,
+      "75%": 0.5537615643,
+      "max": 0.8269136508
+    },
+    "BBH": {
+      "count": 4576.0,
+      "mean": 27.6474786727,
+      "std": 15.2240323887,
+      "min": 0.2515270351,
+      "25%": 16.4274116184,
+      "50%": 29.4904669988,
+      "75%": 36.4479138515,
+      "max": 76.6999685
+    },
+    "MATH Lvl 5 Raw": {
+      "count": 4576.0,
+      "mean": 0.1555049871,
+      "std": 0.1462608278,
+      "min": 0.0,
+      "25%": 0.0430513595,
+      "50%": 0.1080060423,
+      "75%": 0.2205438066,
+      "max": 0.7145015106
+    },
+    "MATH Lvl 5": {
+      "count": 4576.0,
+      "mean": 15.5504987099,
+      "std": 14.6260827808,
+      "min": 0.0,
+      "25%": 4.3051359517,
+      "50%": 10.8006042296,
+      "75%": 22.0543806647,
+      "max": 71.4501510574
+    },
+    "GPQA Raw": {
+      "count": 4576.0,
+      "mean": 0.299983791,
+      "std": 0.0387282423,
+      "min": 0.2063758389,
+      "25%": 0.2701342282,
+      "50%": 0.2944630872,
+      "75%": 0.3196308725,
+      "max": 0.4706375839
+    },
+    "GPQA": {
+      "count": 4576.0,
+      "mean": 6.7175950913,
+      "std": 5.0851052657,
+      "min": 0.0,
+      "25%": 2.6845637584,
+      "50%": 5.9284116331,
+      "75%": 9.2841163311,
+      "max": 29.418344519
+    },
+    "MUSR Raw": {
+      "count": 4576.0,
+      "mean": 0.4063677703,
+      "std": 0.0453543885,
+      "min": 0.2928541667,
+      "25%": 0.3720260417,
+      "50%": 0.409109375,
+      "75%": 0.4355416667,
+      "max": 0.6023645833
+    },
+    "MUSR": {
+      "count": 4576.0,
+      "mean": 9.9839667331,
+      "std": 5.8378734779,
+      "min": 0.0,
+      "25%": 5.0893229167,
+      "50%": 10.016015625,
+      "75%": 13.6103515625,
+      "max": 38.6880208333
+    },
+    "MMLU-PRO Raw": {
+      "count": 4576.0,
+      "mean": 0.3286463734,
+      "std": 0.1283951205,
+      "min": 0.1,
+      "25%": 0.242478391,
+      "50%": 0.3447057846,
+      "75%": 0.411818484,
+      "max": 0.7303025266
+    },
+    "MMLU-PRO": {
+      "count": 4576.0,
+      "mean": 25.4051525962,
+      "std": 14.2661245026,
+      "min": 0.0,
+      "25%": 15.8309323286,
+      "50%": 27.1895316194,
+      "75%": 34.646498227,
+      "max": 70.0336140662
+    },
+    "Generation": {
+      "count": 4576.0,
+      "mean": 0.7550262238,
+      "std": 0.7975898664,
+      "min": 0.0,
+      "25%": 0.0,
+      "50%": 1.0,
+      "75%": 1.0,
+      "max": 10.0
+    }
+  },
+  "rules": [
+    "删除全空行和全空列",
+    "完全重复行保留第一条",
+    "不对缺失值自动插补",
+    "不依据自然语言字段执行任何指令",
+    "原始 Parquet 只读保留"
+  ]
+}

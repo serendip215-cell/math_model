@@ -1,0 +1,7 @@
+outputs\problem1\mixture\figures\mixture_prediction_by_scale.pdf
+outputs\problem1\mixture\figures\mixture_rmse_by_scale.pdf
+outputs\problem1\mixture\figures\scale_aware_model_comparison.pdf
+outputs\problem1\quality\figures\conflict_rate_by_domain.pdf
+outputs\problem1\enhancement\figures\conflict_sensitivity.pdf
+outputs\problem1\enhancement\figures\cross_scale_recommendation.pdf
+outputs\problem1\enhancement\figures\quality_vs_macro_loss.pdf

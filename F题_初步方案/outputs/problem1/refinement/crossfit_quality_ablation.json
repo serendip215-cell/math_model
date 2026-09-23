@@ -1,0 +1,42 @@
+{
+  "q_loss_informed_proxy": {
+    "arxiv": 0.7819042123798114,
+    "freelaw": 0.5693637447993978,
+    "nih_exporter": 0.7127332662137806,
+    "pubmed_central": 0.5861115613713067,
+    "wikipedia_en": 0.6215107447610511,
+    "dm_mathematics": 0.745077273718917,
+    "github": 0.5768577193890864,
+    "philpapers": 0.7488358261159704,
+    "stackexchange": 0.7145557992598962,
+    "enron_emails": 0.7134190815712236,
+    "gutenberg_pg_19": 0.5693637447993978,
+    "pile_cc": 0.7067081635779496,
+    "ubuntu_irc": 0.7819042123798114,
+    "europarl": 0.7043408068761169,
+    "hackernews": 0.7392453865720772,
+    "pubmed_abstracts": 0.6363703460041585,
+    "uspto_backgrounds": 0.6133534770396321
+  },
+  "outer_5fold_oof_baseline": {
+    "rmse": 0.28572613409025244,
+    "spearman": 0.5846083709559287
+  },
+  "outer_5fold_oof_proxy": {
+    "rmse": 0.25058052421586946,
+    "spearman": 0.6812362133930717
+  },
+  "test_1m_baseline": {
+    "rmse": 0.23678644158505738,
+    "spearman": 0.6623719672693978
+  },
+  "test_1m_proxy": {
+    "rmse": 0.20779709995374016,
+    "spearman": 0.7339365415426871
+  },
+  "test_rmse_improvement_pct": 12.242821606364569,
+  "eligible_as_prediction_feature_threshold_2pct": true,
+  "adopted_as_quality_score": false,
+  "method": "outer 5-fold re-estimation of a supervised Loss-informed proxy",
+  "interpretation": "predictive sensitivity analysis only; inferred entries are not independently observed quality"
+}

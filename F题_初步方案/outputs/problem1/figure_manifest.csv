@@ -1,0 +1,14 @@
+﻿figure,data_source,interpretation_boundary
+quality/figures/quality_by_domain.pdf,quality_domain_summary.csv,领域质量中位数及 Bootstrap 区间
+quality/figures/quality_score_distribution.pdf,quality_sample_scores.csv,同域扩展样本与 A1 分布比较
+quality/figures/quality_group_correlation.pdf,quality_sample_scores.csv,四个语义组的相关结构
+quality/figures/conflict_profile_by_domain.pdf,quality_domain_summary.csv; conflict_cause_profile.csv,冲突率与冲突类型构成；结构解释而非语义因果
+mixture/figures/mixture_prediction_1m.pdf,mixture_predictions.csv; mixture_model_metrics.csv,仅展示训练尺度和独立 1M 检验，R²按原始方差计算
+mixture/figures/quality_integration_ablation.pdf,quality_integration_ablation.csv,只使用 A16 可观测映射的 6/17 域 Q；最终未采用
+mixture/figures/cross_scale_transfer.pdf,mixture_model_metrics.csv; scale_aware_metrics.csv,去均值误差与排序；10B/70B 为估计压力测试
+mixture/figures/recommended_mixture.pdf,recommended_mixture.csv; recommendation_stability.csv,经验质心、Bootstrap 区间及响应面诊断解
+mixture/figures/mixture_marginal_effects.pdf,mixture_marginal_effects.csv,训练均值附近的模型局部预测，不作全局因果解释
+enhancement/figures/empirical_centroid_by_observed_scale.pdf,cross_scale_recommendation.csv,仅展示 1M/60M/1B 样本内经验质心，不含估计尺度
+enhancement/figures/domain_ablation.pdf,domain_ablation.csv,输入域移除敏感性；纵轴为标准化目标口径
+enhancement/figures/estimated_scale_effect_decay_check.pdf,effect_variant_results.csv,估计表诊断；纯规模基线 RMSE 更低且含配比变体排序接近零
+enhancement/figures/recommendation_regularization_path.pdf,regularization_path.csv,响应面外推与最近实测邻域的对照

@@ -1,0 +1,7 @@
+{
+  "design": "min pred_quad(z) + lam*||z-z_centroid||^2, 信任域路径",
+  "train_min_pred_std": -1.9931302650957372,
+  "centroid_pred_std": -0.7148035813546376,
+  "cost_of_conservatism_std": -1.2783266837410996,
+  "note": "cost_of_conservatism = 训练集内最低预测 - 质心预测，衡量放弃边界解的预测代价"
+}

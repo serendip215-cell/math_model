@@ -1,0 +1,39 @@
+{
+  "files": {
+    "A1_sample": {
+      "path": "A_data_value\\slimpajama_quality_signal_sample.jsonl",
+      "records": 51230,
+      "duplicate_ids_within_file": 0,
+      "domains": {
+        "arxiv": 1419,
+        "book": 171,
+        "c4": 10000,
+        "commoncrawl": 9640,
+        "github": 10000,
+        "stackexchange": 10000,
+        "wikipedia": 10000
+      },
+      "sha256": "e128bb44639bd44bd477f72950820fabdfb4bbd8b22143f8d98528cbb64fe148"
+    },
+    "A2_arxiv": {
+      "path": "A_data_value\\slimpajama_quality_extended\\arxiv_part-6777d8857c6e-000486.jsonl",
+      "records": 17523,
+      "duplicate_ids_within_file": 0,
+      "domains": {
+        "arxiv": 17523
+      },
+      "sha256": "36254e7350e856c87afc16491cd302e92330760935c65cbff113bc07eae9ec4e"
+    },
+    "A3_github": {
+      "path": "A_data_value\\slimpajama_quality_extended\\github_part-6777d8857c6e-000275.jsonl",
+      "records": 203752,
+      "duplicate_ids_within_file": 0,
+      "domains": {
+        "github": 203752
+      },
+      "sha256": "62e4d7ff725f7fe8c4aa888b180443d55500100cb247776fe553f6cd5f1062b4"
+    }
+  },
+  "invalid_json_lines": 0,
+  "field_shape_errors": {}
+}

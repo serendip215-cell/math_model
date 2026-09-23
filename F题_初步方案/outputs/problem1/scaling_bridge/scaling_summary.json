@@ -1,0 +1,154 @@
+{
+  "fit_info": {
+    "fit_scales": [
+      "train_1m",
+      "test_60m",
+      "test_1B"
+    ],
+    "n_fit": 832,
+    "params": {
+      "a": 1.347061847528768e-14,
+      "c": 19.064832145834238,
+      "beta": 0.09475580751815836
+    },
+    "param_std": {
+      "a": 0.7732319426359565,
+      "c": 1.761377866522294,
+      "beta": 0.017554717258613146
+    },
+    "fit_rmse": 0.33913916634614305
+  },
+  "results": [
+    {
+      "scale": "train_1m",
+      "n": 512,
+      "D_tokens": 1000000.0,
+      "observed": true,
+      "pred_rmse": 0.3273766956071643,
+      "spearman_r": 0.029648941941502898,
+      "spearman_p": 0.503249017741691,
+      "mean_actual_loss": 5.344656776171178,
+      "mean_pred_loss": 5.368860990202855
+    },
+    {
+      "scale": "test_1m",
+      "n": 256,
+      "D_tokens": 1000000.0,
+      "observed": false,
+      "pred_rmse": 0.29535530548779887,
+      "spearman_r": 0.009293459601739527,
+      "spearman_p": 0.8823657647349085,
+      "mean_actual_loss": 5.282281966306842,
+      "mean_pred_loss": 5.371290333782719
+    },
+    {
+      "scale": "test_60m",
+      "n": 256,
+      "D_tokens": 60000000.0,
+      "observed": true,
+      "pred_rmse": 0.28416555642813657,
+      "spearman_r": 0.039524204623483626,
+      "spearman_p": 0.528996548807183,
+      "mean_actual_loss": 3.822911177618572,
+      "mean_pred_loss": 3.644084762717083
+    },
+    {
+      "scale": "test_1B",
+      "n": 64,
+      "D_tokens": 1000000000.0,
+      "observed": true,
+      "pred_rmse": 0.5610664875891828,
+      "spearman_r": -0.1936355311355311,
+      "spearman_p": 0.12525041078425542,
+      "mean_actual_loss": 2.225570281856971,
+      "mean_pred_loss": 2.7840304215985046
+    },
+    {
+      "scale": "est_10b",
+      "n": 63,
+      "D_tokens": 10000000000.0,
+      "observed": false,
+      "pred_rmse": 0.4559546371163301,
+      "spearman_r": -0.0883736559139785,
+      "spearman_p": 0.4909823964146241,
+      "mean_actual_loss": 1.7974589743589742,
+      "mean_pred_loss": 2.2428817419514893
+    },
+    {
+      "scale": "est_70b",
+      "n": 63,
+      "D_tokens": 70000000000.0,
+      "observed": false,
+      "pred_rmse": 0.4627953709419986,
+      "spearman_r": -0.09240591397849462,
+      "spearman_p": 0.47133709295722015,
+      "mean_actual_loss": 1.4145459096459092,
+      "mean_pred_loss": 1.865212977182224
+    }
+  ],
+  "baseline_fit": {
+    "params": {
+      "a": 1.3067480720542329e-12,
+      "c": 25.24122735685972,
+      "beta": 0.11107959710538534
+    },
+    "scale_baselines": {
+      "train_1m": 5.4404257319641625,
+      "test_1m": 5.4404257319641625,
+      "test_60m": 3.452363859128111,
+      "test_1B": 2.525771710785146,
+      "est_10b": 1.9557552180511535,
+      "est_70b": 1.5755832233542202
+    }
+  },
+  "combined_model": [
+    {
+      "scale": "train_1m",
+      "observed": true,
+      "baseline_loss": 5.4404257319641625,
+      "pred_rmse": 0.22038714105808563,
+      "spearman_r": 0.7974463126995571,
+      "spearman_p": 5.633223597428899e-114
+    },
+    {
+      "scale": "test_1m",
+      "observed": false,
+      "baseline_loss": 5.4404257319641625,
+      "pred_rmse": 0.2779244118194531,
+      "spearman_r": 0.6623719672693978,
+      "spearman_p": 1.047179979990944e-33
+    },
+    {
+      "scale": "test_60m",
+      "observed": true,
+      "baseline_loss": 3.452363859128111,
+      "pred_rmse": 0.43205808353909997,
+      "spearman_r": 0.6248297665369649,
+      "spearman_p": 3.9840664322727215e-29
+    },
+    {
+      "scale": "test_1B",
+      "observed": true,
+      "baseline_loss": 2.525771710785146,
+      "pred_rmse": 0.17599062236321072,
+      "spearman_r": 0.47765567765567757,
+      "spearman_p": 6.5726429701607e-05
+    },
+    {
+      "scale": "est_10b",
+      "observed": false,
+      "baseline_loss": 1.9557552180511535,
+      "pred_rmse": 0.3943677434333415,
+      "spearman_r": -0.5890456989247312,
+      "spearman_p": 3.8067964928205984e-07
+    },
+    {
+      "scale": "est_70b",
+      "observed": false,
+      "baseline_loss": 1.5755832233542202,
+      "pred_rmse": 0.4069699296155511,
+      "spearman_r": -0.6634024577572966,
+      "spearman_p": 3.1235035756292927e-09
+    }
+  ]
+}
