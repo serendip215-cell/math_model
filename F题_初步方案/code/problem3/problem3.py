@@ -15,7 +15,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from scipy.optimize import minimize_scalar, brentq
+from scipy.optimize import minimize_scalar, brentq, differential_evolution
 
 PROJECT = Path(__file__).resolve().parents[2]
 DATA = PROJECT.parent / "F题_清洗后"
@@ -219,6 +219,64 @@ def independent_grid_check(sol: dict, data: Inputs, n_points: int = 180, q_point
             "grid_N_points": n_points, "grid_Q_points": q_points}
 
 
+def global_search_check(sol: dict, data: Inputs) -> dict:
+    """Independent two-dimensional global search, with D eliminated analytically."""
+    budget = sol["budget_FLOPs"] / 1e21
+    q0, context, kind = sol["Q0_B"], int(sol["L_ctx"]), sol["quality_cost"]
+    a = .001 * (6 + ETA * context)
+
+    def objective(x: np.ndarray) -> float:
+        n, q = math.exp(float(x[0])), float(x[1])
+        b = max(0.0, g(q, kind) - g(q0, kind)) / 1e12
+        d = min(data.dhi, budget / (a * n + b))
+        if d < data.dlo:
+            return 1e3 + 1e3 * (data.dlo - d)
+        return loss(n, d, q, data)
+
+    result = differential_evolution(objective,
+                                    [(math.log(data.nlo), math.log(data.nhi)), (q0, 1.0)],
+                                    seed=20260924, popsize=12, maxiter=180, tol=1e-10,
+                                    polish=True)
+    return {"budget_FLOPs": sol["budget_FLOPs"], "quality_cost": kind,
+            "optimized_loss": sol["predicted_loss"], "global_search_loss": result.fun,
+            "optimized_minus_global": sol["predicted_loss"] - result.fun,
+            "global_search_success": result.success, "global_search_evaluations": result.nfev}
+
+
+def marginal_kkt_check(sol: dict, data: Inputs) -> dict:
+    """Compare loss gain per marginal FLOP among genuinely interior decisions."""
+    n, d, q = sol["N_star_B"], sol["D_star_B"], sol["Q_star_B"]
+    kind, context = sol["quality_cost"], int(sol["L_ctx"])
+    x = data.m0["A"] * n ** (-data.m0["alpha"])
+    y = data.m0["B"] * d ** (-data.m0["beta"])
+    f = math.exp(data.gamma * (1 - q))
+    if data.placement == "both":
+        gains = [f * data.m0["alpha"] * x / n,
+                 f * data.m0["beta"] * y / d,
+                 data.gamma * f * (x + y)]
+    else:
+        gains = [data.m0["alpha"] * x / n,
+                 f * data.m0["beta"] * y / d,
+                 data.gamma * f * y]
+    if kind == "exponential": derivative = 6 * g(q, kind)
+    elif kind == "power": derivative = 20e9 * q ** 3
+    else: derivative = 20e9 / (1 + 10 * q)
+    marginal_costs = [.001 * (6 + ETA * context) * d,
+                      .001 * (6 + ETA * context) * n +
+                      (g(q, kind) - g(sol["Q0_B"], kind)) / 1e12,
+                      d * derivative / 1e12]
+    efficiencies = np.asarray(gains) / np.asarray(marginal_costs)
+    interior = [data.nlo * (1 + 1e-4) < n < data.nhi * (1 - 1e-4),
+                data.dlo * (1 + 1e-4) < d < data.dhi * (1 - 1e-4),
+                sol["Q0_B"] + 1e-4 < q < 1 - 1e-4]
+    active = efficiencies[interior]
+    gap = float((active.max() - active.min()) / active.max()) if len(active) >= 2 else math.nan
+    return {"budget_FLOPs": sol["budget_FLOPs"], "quality_cost": kind,
+            "N_interior": interior[0], "D_interior": interior[1], "Q_interior": interior[2],
+            "N_gain_per_C21": efficiencies[0], "D_gain_per_C21": efficiencies[1],
+            "Q_gain_per_C21": efficiencies[2], "interior_relative_gap": gap}
+
+
 def configure_plots() -> None:
     plt.rcParams.update({"font.sans-serif": ["Microsoft YaHei", "SimHei", "DejaVu Sans"],
                          "axes.unicode_minus": False, "pdf.fonttype": 42,
@@ -261,11 +319,11 @@ def figures(main: pd.DataFrame, path: pd.DataFrame, contexts: pd.DataFrame,
     axes[1].plot(context_view.L_ctx, context_view.D_star_B, marker="o")
     axes[2].plot(context_view.L_ctx, context_view.predicted_loss, marker="o")
     for ax, ylabel in zip(axes, ["最优 N（十亿）", "最优 D（十亿 Token）", "条件预测 Loss"]):
-        ax.set_xscale("log"); ax.set_xlabel("C7 上下文窗口长度"); ax.set_ylabel(ylabel); ax.grid(alpha=.2)
+        ax.set_xscale("log"); ax.set_xlabel("C7 最大位置容量情景"); ax.set_ylabel(ylabel); ax.grid(alpha=.2)
         ax.axvline(30000, color="#dc2626", ls="--", lw=1, label="临界长度 30000")
     axes[0].legend(fontsize=8); fig.tight_layout()
     name = "context_sensitivity.pdf"; fig.savefig(FIGURES / name, bbox_inches="tight"); plt.close(fig)
-    manifest.append((name, "context_sensitivity.csv", "C7 离散长度及解析临界值；长度不是寻优变量"))
+    manifest.append((name, "context_sensitivity.csv", "以 C7 最大位置容量构造的假设情景；不是实测训练长度"))
     return save(pd.DataFrame(manifest, columns=["figure", "data_source", "interpretation"]), "figure_manifest.csv")
 
 
@@ -282,6 +340,14 @@ def main() -> None:
             result["loss_gain_vs_fixed_Q0"] = baseline["predicted_loss"] - result["predicted_loss"]
             base_rows.append(result)
     main_df = save(pd.DataFrame(base_rows), "optimal_allocations.csv")
+    (RESULTS / "recipe_identifiability_audit.json").write_text(json.dumps({
+        "recipe_source": "problem1 recommended_mixture.csv",
+        "recipe_role": "exogenous policy scenario only",
+        "recipe_enters_loss_formula": False,
+        "recipe_enters_cost_formula": False,
+        "joint_optimum_over_recipe_identified": False,
+        "reason": "No cross-protocol measured L(N,D,Q_B,p) or calibrated Q_A-to-Q_B mapping"
+    }, ensure_ascii=False, indent=2), encoding="utf-8")
 
     path_rows = []
     for kind in COST_NAMES:
@@ -364,6 +430,10 @@ def main() -> None:
     constraint_checks = save(pd.DataFrame(checks), "constraint_checks.csv")
     grid_check = save(pd.DataFrame([independent_grid_check(row, data) for row in base_rows
                                     if row["budget_FLOPs"] != 1e24]), "independent_grid_checks.csv")
+    global_check = save(pd.DataFrame([global_search_check(row, data) for row in base_rows]),
+                        "global_search_checks.csv")
+    kkt_check = save(pd.DataFrame([marginal_kkt_check(row, data) for row in base_rows]),
+                     "marginal_kkt_checks.csv")
 
     m0boot = pd.read_csv(P2 / "m0_bootstrap_parameters.csv").set_index("replicate")
     m1boot = pd.read_csv(P2 / "m1_bootstrap_parameters.csv").set_index("replicate")
@@ -384,15 +454,21 @@ def main() -> None:
     quant = boot.groupby("budget_FLOPs")[["N_star_B", "D_star_B", "Q_star_B", "predicted_loss"]].quantile([.025, .5, .975])
     save(quant.reset_index().rename(columns={"level_1": "quantile"}), "conditional_bootstrap_quantiles.csv")
     manifest = figures(main_df, path, contexts, contexts)
-    write_report(data, main_df, path, transitions_df, contexts, constraint_checks, grid_check, boot, manifest)
+    write_report(data, main_df, path, transitions_df, contexts, constraint_checks,
+                 grid_check, global_check, kkt_check, boot, manifest)
     summary = {"support": {"N_B": [data.nlo, data.nhi], "D_B": [data.dlo, data.dhi],
                            "Q_B": [Q0_MAIN, 1.0]},
                "C7_contexts": [int(x) for x in data.contexts], "L_crit": 6 / ETA,
                "solutions": len(main_df), "path_points": len(path),
                "max_constraint_violation": float(constraint_checks.relative_budget_violation.max()),
                "max_optimized_minus_grid": float(grid_check.optimized_minus_grid.max()),
+               "max_optimized_minus_global": float(global_check.optimized_minus_global.max()),
+               "max_interior_kkt_gap": float(kkt_check.interior_relative_gap.max()),
                "conditional_bootstrap_replicates": len(selected),
-               "transitions": len(transitions_df), "no_QA_to_QB_calibration": True}
+               "transitions": len(transitions_df), "no_QA_to_QB_calibration": True,
+               "C7_is_capacity_not_measured_training_length": True,
+               "fixed_recipe_large_scale_transfer_unvalidated": True,
+               "recipe_influence_on_numeric_optimum_identified": False}
     (RESULTS / "problem3_summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
     print(json.dumps(summary, ensure_ascii=False, indent=2))
 
@@ -420,7 +496,8 @@ def optimize_fixed_q(budget: float, context: int, kind: str, q0: float, data: In
 
 def write_report(data: Inputs, main_df: pd.DataFrame, path: pd.DataFrame,
                  transitions: pd.DataFrame, contexts: pd.DataFrame,
-                 checks: pd.DataFrame, grid: pd.DataFrame, boot: pd.DataFrame,
+                 checks: pd.DataFrame, grid: pd.DataFrame,
+                 global_check: pd.DataFrame, kkt_check: pd.DataFrame, boot: pd.DataFrame,
                  manifest: pd.DataFrame) -> None:
     focus = main_df[main_df.quality_cost == "exponential"]
     focus_view = focus[["budget_FLOPs", "N_star_B", "D_star_B", "Q_star_B", "predicted_loss",
@@ -443,7 +520,7 @@ def write_report(data: Inputs, main_df: pd.DataFrame, path: pd.DataFrame,
 
 ## 1. 模型与证据边界
 
-本问固定问题一的 17 域推荐质心配比，使用问题二经 B6 分组 CV 选中的 **exp_both** 质量响应。优化变量为 $N,D,Q_B$；$Q_A$ 与 $Q_B$ 未标定，不联立优化配比，也不把半合成 B6 解释为真实训练质量处理实验。主情景 $Q_{{B,0}}=0.4$ 是 B6 已列出的质量水平，**不是**问题一评分实测值。质量成本是题设参数情景，不是采购报价。
+本问列出问题一的 17 域推荐质心配比，使用问题二经 B6 分组 CV 选中的 **exp_both** 质量响应。优化变量为 $N,D,Q_B$；$Q_A$ 与 $Q_B$ 未标定，也不把半合成 B6 解释为真实训练质量处理实验。主情景 $Q_{{B,0}}=0.4$ 是 B6 已列出的质量水平，**不是**问题一评分实测值。质量成本是题设参数情景，不是采购报价。**当前 Loss 与成本公式均不含配比 $p$；因此第一问推荐配比是外生政策情景，不影响表中的数值最优解，更不能声称已求出 $N,D,Q_B,p$ 的联合最优。** 推荐配比主要来自第一问较小尺度的配比实验；用于本问较大 $N$ 时也缺少跨尺度联合验证。该不可识别性单列于 `recipe_identifiability_audit.json`。
 
 共同支持域为 $N_B\in[{data.nlo:.6f},{data.nhi:.6f}]$、$D_B\in[{data.dlo:g},{data.dhi:.3f}]$、$Q_B\in[0.4,1]$。其中 B1 是真实训练轨迹，B6 质量关系为半合成；连续最优 $Q_B$ 是模型在 B6 离散质量水平之间的插值。目标值包括 B6 来源截距 $\delta_B$；截距不影响决策。固定配比参见 `fixed_recipe.csv`，输入范围和 C7 窗口分别见 `input_support_audit.csv`、`c7_context_support.csv`。
 
@@ -481,7 +558,7 @@ def write_report(data: Inputs, main_df: pd.DataFrame, path: pd.DataFrame,
 
 ## 3. 上下文与结构性转移
 
-题面 $C_{{train}}=6ND$、$C_{{attn}}=\eta NDL_{{ctx}}$ 给出临界值 $L_{{ctx}}^{{crit}}=6/\eta=30,000$。C7 实际有 {[int(x) for x in data.contexts]} 五种窗口，其中 32768 略高于临界值，131072 只有一条记录。注意力与基础训练成本比为 $\eta L_{{ctx}}/6$，不依赖 $N,D$；在 32768 时约为 1.092。固定 $C=10^{{21}}$、指数质量成本时：
+题面 $C_{{train}}=6ND$、$C_{{attn}}=\eta NDL_{{ctx}}$ 给出临界值 $L_{{ctx}}^{{crit}}=6/\eta=30,000$。C7 的 `max_position_embeddings` 有 {[int(x) for x in data.contexts]} 五种**最大位置容量**，其中 32768 略高于临界值，131072 只有一条记录。这些数值用来构造假设的上下文情景，**不是模型实际训练序列长度的观测值**，也不能据此验证注意力成本。注意力与基础训练成本比为 $\eta L_{{ctx}}/6$，不依赖 $N,D$；在 32768 情景时约为 1.092。固定 $C=10^{{21}}$、指数质量成本时：
 
 {table(context_view, 5)}
 
@@ -495,7 +572,7 @@ def write_report(data: Inputs, main_df: pd.DataFrame, path: pd.DataFrame,
 
 ## 4. 结果核验与不确定性
 
-共复核 {len(checks)} 个主解、预算路径和上下文情景；最大预算超限比例 {checks.relative_budget_violation.max():.3e}，所有 $N,D,Q_B$ 均在指定范围，逐解记录见 `constraint_checks.csv`。独立 {int(grid.grid_N_points.iloc[0])}×{int(grid.grid_Q_points.iloc[0])} 网格核查的最大“优化 Loss－网格最小 Loss”为 {grid.optimized_minus_grid.max():.3e}（应不为明显正值），逐解记录见 `independent_grid_checks.csv`。
+共复核 {len(checks)} 个主解、预算路径和上下文情景；最大预算超限比例 {checks.relative_budget_violation.max():.3e}，所有 $N,D,Q_B$ 均在指定范围，逐解记录见 `constraint_checks.csv`。独立 {int(grid.grid_N_points.iloc[0])}×{int(grid.grid_Q_points.iloc[0])} 网格核查的最大“优化 Loss－网格最小 Loss”为 {grid.optimized_minus_grid.max():.3e}；另一种随机种子固定的差分进化全局搜索，对 12 个主解的最大“现有解 Loss－独立搜索 Loss”为 {global_check.optimized_minus_global.max():.3e}。两者均未找到明显更优解，逐解见 `independent_grid_checks.csv` 和 `global_search_checks.csv`。内点变量的 Loss 边际降低量/FLOP 应相等；可比较的主解最大相对差为 {kkt_check.interior_relative_gap.max():.3e}，见 `marginal_kkt_checks.csv`。边界变量不要求满足内点相等式。
 
 来自问题二同编号 B1 轨迹/B6 单元重抽样的 {boot.replicate.nunique()} 个条件参数样本，其配置分位数如下（详见 `conditional_bootstrap_allocations.csv`、`conditional_bootstrap_quantiles.csv`）：
 

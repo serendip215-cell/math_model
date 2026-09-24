@@ -29,9 +29,12 @@ def main() -> None:
     transitions = pd.read_csv(RESULTS / "active_set_transitions.csv")
     boot = pd.read_csv(RESULTS / "conditional_bootstrap_allocations.csv")
     grid = pd.read_csv(RESULTS / "independent_grid_checks.csv")
+    global_check = pd.read_csv(RESULTS / "global_search_checks.csv")
+    kkt = pd.read_csv(RESULTS / "marginal_kkt_checks.csv")
     structure = pd.read_csv(RESULTS / "m1_structure_sensitivity.csv")
     manifest = pd.read_csv(RESULTS / "figure_manifest.csv")
     recipe = pd.read_csv(RESULTS / "fixed_recipe.csv")
+    recipe_audit = json.loads((RESULTS / "recipe_identifiability_audit.json").read_text(encoding="utf-8"))
 
     add("输入合同与支持域", data.nlo < data.nhi and data.dlo < data.dhi and
         summary["support"]["N_B"] == [data.nlo, data.nhi] and
@@ -44,6 +47,15 @@ def main() -> None:
     add("C7 离散窗口与临界长度", summary["C7_contexts"] == [2048, 4096, 8192, 32768, 131072]
         and abs(summary["L_crit"] - 30000) < 1e-9 and 8192 < 30000 < 32768,
         "Lcrit=6/eta=30000，处于 C7 的 8192 与 32768 之间")
+    add("C7 最大容量证据边界", summary["C7_is_capacity_not_measured_training_length"] is True,
+        "max_position_embeddings 仅作为假设情景，未当作实测训练序列长度")
+    add("推荐配比跨尺度证据边界", summary["fixed_recipe_large_scale_transfer_unvalidated"] is True,
+        "问题一较小尺度质心在本问大 N 下只作固定政策情景")
+    add("配比未进入数值目标", recipe_audit["recipe_enters_loss_formula"] is False and
+        recipe_audit["recipe_enters_cost_formula"] is False and
+        recipe_audit["joint_optimum_over_recipe_identified"] is False and
+        summary["recipe_influence_on_numeric_optimum_identified"] is False,
+        "p 仅列为外生政策情景，未声称求得 N,D,Q_B,p 的联合最优")
     add("质量成本单调性", all(np.all(np.diff(g(np.linspace(.1, 1, 50), kind)) > 0)
                              for kind in ["exponential", "power", "logarithmic"]),
         "三种题设成本在 Q_B 支持域内严格递增")
@@ -82,6 +94,12 @@ def main() -> None:
         "exp_D 仅作候选结构对照；主模型结果可回代")
     add("独立网格未找到更优解", grid.optimized_minus_grid.max() <= 1e-5,
         f"优化减密集网格 Loss 最大={grid.optimized_minus_grid.max():.3e}")
+    add("差分进化未找到更优解", len(global_check) == len(main) and
+        global_check.optimized_minus_global.max() < 1e-5,
+        f"优化减独立全局搜索 Loss 最大={global_check.optimized_minus_global.max():.3e}")
+    kkt_comparable = kkt.interior_relative_gap.dropna()
+    add("内点边际条件", len(kkt_comparable) >= 3 and kkt_comparable.max() < 1e-3,
+        f"{len(kkt_comparable)} 个可比较主解的最大相对差={kkt_comparable.max():.3e}")
 
     infeasible = contexts[contexts.status == "infeasible_lower_support"]
     min_costs = [sum(cost_21(data.nlo, data.dlo, row.Q0_B, row.Q0_B,
@@ -126,7 +144,7 @@ def main() -> None:
 
 ## 解释范围
 
-预算配置来自 B1 真实训练轨迹的规模响应与 B6 半合成质量响应；质量成本由题目附录 B 假设。第一问推荐配比固定，$Q_A$ 与 $Q_B$ 未校准。高预算未用余额反映数据支持域饱和。Bootstrap 仅是当前模型内参数重抽样，不覆盖真实成本或跨数据源协议误差。
+预算配置来自 B1 真实训练轨迹的规模响应与 B6 半合成质量响应；质量成本由题目附录 B 假设。第一问推荐配比仅列为外生情景，未进入第三问目标式，不能声称求得配比联合最优；较大尺度下是否仍最优也未验证。$Q_A$ 与 $Q_B$ 未校准。C7 的最大位置容量只是上下文假设情景，不是实际训练长度。高预算未用余额反映数据支持域饱和。Bootstrap 仅是当前模型内参数重抽样，不覆盖真实成本或跨数据源协议误差。
 """, encoding="utf-8")
     print(json.dumps({"passed": passed, "checks": len(result),
                       "failed": result.loc[~result.passed, "check"].tolist()}, ensure_ascii=False))

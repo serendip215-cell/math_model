@@ -1,0 +1,8 @@
+{
+  "recipe_source": "problem1 recommended_mixture.csv",
+  "recipe_role": "exogenous policy scenario only",
+  "recipe_enters_loss_formula": false,
+  "recipe_enters_cost_formula": false,
+  "joint_optimum_over_recipe_identified": false,
+  "reason": "No cross-protocol measured L(N,D,Q_B,p) or calibrated Q_A-to-Q_B mapping"
+}

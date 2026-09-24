@@ -25,7 +25,12 @@
   "path_points": 138,
   "max_constraint_violation": 2.220446049250313e-16,
   "max_optimized_minus_grid": -9.970283265658964e-09,
+  "max_optimized_minus_global": -3.5496050543315505e-12,
+  "max_interior_kkt_gap": 7.223859785952708e-08,
   "conditional_bootstrap_replicates": 80,
   "transitions": 13,
-  "no_QA_to_QB_calibration": true
+  "no_QA_to_QB_calibration": true,
+  "C7_is_capacity_not_measured_training_length": true,
+  "fixed_recipe_large_scale_transfer_unvalidated": true,
+  "recipe_influence_on_numeric_optimum_identified": false
 }

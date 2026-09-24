@@ -1,4 +1,4 @@
 ﻿figure,data_source,interpretation
 budget_path.pdf,budget_path.csv,支持域内最优配置；高预算平台为支持域饱和
 compute_allocation.pdf,optimal_allocations.csv,三部分成本占已使用预算比例；未用预算另见表
-context_sensitivity.pdf,context_sensitivity.csv,C7 离散长度及解析临界值；长度不是寻优变量
+context_sensitivity.pdf,context_sensitivity.csv,以 C7 最大位置容量构造的假设情景；不是实测训练长度
