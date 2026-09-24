@@ -1,6 +1,6 @@
 # 问题四独立验收
 
-通过 31/31 项。
+通过 37/37 项。
 
 | 检查 | 结果 | 说明 |
 | --- | --- | --- |
@@ -8,20 +8,25 @@
 | Panel model unique | 通过 |  |
 | Six-task average | 通过 |  |
 | Strict open evidence | 通过 |  |
+| Unknown weight stratum excludes explicit No | 通过 |  |
 | Panel cutoff | 通过 |  |
 | Pretrained late count | 通过 |  |
 | Flow raw row count | 通过 |  |
+| Publication audit totals strict pre and post | 通过 |  |
+| Publication lag independently recomputed | 通过 |  |
 | Every accepted link passes all rules | 通过 |  |
 | Accepted C4 records are one-to-one | 通过 |  |
 | Known developer id agrees with repository namespace | 通过 |  |
 | Compute subset has verified positive compute | 通过 |  |
 | Compute subset only strict pretrained | 通过 |  |
+| Ridge alpha selected by family-balanced CV | 通过 |  |
 | Time holdout row RMSE independently recomputed | 通过 |  |
 | Time holdout family-balanced RMSE independently recomputed | 通过 |  |
 | Temporal model comparison agrees with saved holdout errors | 通过 |  |
 | Temporal comparison bootstrap bounds valid | 通过 |  |
 | Compute association bootstrap intervals valid | 通过 |  |
 | C8 file count | 通过 |  |
+| C8 timestamps numeric | 通过 |  |
 | C8 unique latest model | 通过 |  |
 | C8 parsed leaf average independently | 通过 |  |
 | C8 different scale explicit | 通过 |  |
@@ -30,6 +35,7 @@
 | Observed change residual additivity | 通过 |  |
 | Bootstrap replicate additivity | 通过 |  |
 | Strict pretrained gate failed | 通过 |  |
+| Overlap-only fit decomposition additive | 通过 |  |
 | Bridge high only seven and no frontier translation | 通过 |  |
 | Bridge LOO RMSE | 通过 |  |
 | No unsupported future score emitted | 通过 |  |

@@ -1,0 +1,7 @@
+﻿type_group,period,models,publication_date_available,publication_after_submission,publication_over_180_days_older,median_submission_minus_publication_days
+posttrained,early,33,33,1,11,71.0
+posttrained,late,67,67,6,22,104.0
+posttrained,middle,41,41,3,7,59.0
+pretrained,early,30,30,1,18,253.0
+pretrained,late,5,5,0,2,168.0
+pretrained,middle,7,7,0,0,2.0

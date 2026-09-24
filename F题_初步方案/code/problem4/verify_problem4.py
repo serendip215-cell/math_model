@@ -34,10 +34,21 @@ def main() -> None:
     check("Six-task average", np.allclose(panel[TASKS].mean(axis=1), panel.Y, atol=1e-10))
     check("Strict open evidence", panel.loc[panel.strict_open, "Epoch_AI_Open_Weights"].eq("Yes").all()
           and panel.loc[panel.strict_open, "Hub License"].isin(PERMISSIVE).all())
+    check("Unknown weight stratum excludes explicit No", panel.loc[
+          panel.license_only_unverified, "Epoch_AI_Open_Weights"].isna().all() and
+          panel.loc[panel.license_explicit_no, "Epoch_AI_Open_Weights"].eq("No").all())
     check("Panel cutoff", pd.to_datetime(panel.submission).max() <= pd.Timestamp("2025-03-13"))
     check("Pretrained late count", len(panel[panel.strict_open &
           panel.type_group.eq("pretrained") & pd.to_datetime(panel.submission).ge("2025-01-01")]) == 5)
     check("Flow raw row count", int(flow.iloc[0].rows) == len(raw))
+    publication = read("publication_submission_audit.csv")
+    check("Publication audit totals strict pre and post", publication.models.sum() ==
+          len(panel[panel.strict_open & panel.type_group.isin(["pretrained", "posttrained"])])
+          and publication.publication_after_submission.le(publication.models).all())
+    pub_lag = (pd.to_datetime(panel.submission) -
+               pd.to_datetime(panel.epoch_publication, errors="coerce")).dt.days
+    check("Publication lag independently recomputed", np.allclose(
+          pub_lag.fillna(-99999), panel.publication_lag_days.fillna(-99999)))
 
     links = read("c1_c4_link_audit.csv")
     accepted = links[links.accepted_link]
@@ -59,6 +70,13 @@ def main() -> None:
     holdout = read("future_holdout_predictions.csv")
     metrics = read("model_holdout_metrics.csv")
     fit_metrics = metrics[metrics.status.isin(["fit", "baseline"])]
+    cv = read("family_group_cv.csv")
+    selected_ok = []
+    for item in metrics[metrics.status.eq("fit")].itertuples():
+        candidate = cv[(cv.stratum == item.stratum) & (cv.variant == item.variant)]
+        selected_ok.append(np.isclose(item.alpha, candidate.loc[
+            candidate.group_cv_family_balanced_rmse.idxmin(), "alpha"]))
+    check("Ridge alpha selected by family-balanced CV", all(selected_ok))
     row_ok = []; family_ok = []
     for item in fit_metrics.itertuples():
         rows = holdout[(holdout.stratum == item.stratum) & (holdout.variant == item.variant)]
@@ -92,6 +110,8 @@ def main() -> None:
     c8audit = read("c8_file_audit.csv")
     c8 = read("c8_bbh_leaf_aggregation.csv")
     check("C8 file count", len(c8audit) == 1954)
+    check("C8 timestamps numeric", pd.to_numeric(c8audit.eval_timestamp,
+          errors="coerce").notna().all())
     check("C8 unique latest model", c8.Model.is_unique)
     check("C8 parsed leaf average independently", all(
         np.isclose(100 * np.mean([v["acc_norm,none"] for k, v in
@@ -115,6 +135,10 @@ def main() -> None:
           boots.conditional_time_points, boots.model_change_points, atol=1e-8))
     check("Strict pretrained gate failed", not bool(support.loc[
           support.stratum.eq("strict_pretrained"), "eligible"].iloc[0]))
+    overlap = read("decomposition_overlap_fit_sensitivity.csv")
+    check("Overlap-only fit decomposition additive", np.allclose(
+          overlap.overlap_fit_scale_points + overlap.overlap_fit_time_points,
+          overlap.overlap_fit_total_points, atol=1e-8))
 
     bridge = json.loads((RESULTS / "bridge_summary.json").read_text(encoding="utf-8"))
     check("Bridge high only seven and no frontier translation", bridge["high_n"] == 7

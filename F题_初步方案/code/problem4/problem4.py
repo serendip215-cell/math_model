@@ -100,7 +100,7 @@ def load_contract() -> dict[str, pd.DataFrame]:
     return frames
 
 
-def prepare_panel(c2: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+def prepare_panel(c2: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     a = c2.copy()
     flow = [{"step": "C2 raw", "rows": len(a), "unique_models": a.Model.nunique()}]
     a["submission"] = pd.to_datetime(a["Submission Date"], errors="coerce")
@@ -120,23 +120,39 @@ def prepare_panel(c2: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     a["license_permissive"] = a["Hub License"].isin(PERMISSIVE)
     a["open_weight_confirmed"] = a.Epoch_AI_Open_Weights.eq("Yes")
     a["strict_open"] = a.license_permissive & a.open_weight_confirmed
-    a["license_only_unverified"] = a.license_permissive & ~a.open_weight_confirmed
+    a["license_only_unverified"] = a.license_permissive & a.Epoch_AI_Open_Weights.isna()
+    a["license_explicit_no"] = a.license_permissive & a.Epoch_AI_Open_Weights.eq("No")
+    a["epoch_publication"] = pd.to_datetime(a.Epoch_AI_Publication_Date, errors="coerce")
+    a["publication_lag_days"] = (a.submission - a.epoch_publication).dt.days
     a["t_month"] = (a.submission - START).dt.days / 30.4375
     a["logN"] = np.log10(a.N_B)
     for step, filt in [("permissive license", a.license_permissive),
                        ("strict open weight + license", a.strict_open),
+                       ("permissive license + unknown weight status", a.license_only_unverified),
+                       ("permissive license + explicit No weight status", a.license_explicit_no),
                        ("strict pretrained", a.strict_open & a.type_group.eq("pretrained")),
                        ("strict posttrained", a.strict_open & a.type_group.eq("posttrained"))]:
         sub = a[filt]
         flow.append({"step": step, "rows": len(sub), "unique_models": sub.Model.nunique(),
                      "families": sub.family.nunique()})
     save(pd.DataFrame(flow), "panel_attrition.csv")
+    dated = a[a.strict_open & a.type_group.isin(["pretrained", "posttrained"])].copy()
+    dated["period"] = np.select([dated.submission.le(EARLY_END), dated.submission.ge(LATE_START)],
+                                 ["early", "late"], default="middle")
+    pub_audit = save(dated.groupby(["type_group", "period"], as_index=False).agg(
+        models=("Model", "size"), publication_date_available=("epoch_publication", "count"),
+        publication_after_submission=("publication_lag_days", lambda s: int(s.lt(0).sum())),
+        publication_over_180_days_older=("publication_lag_days", lambda s: int(s.gt(180).sum())),
+        median_submission_minus_publication_days=("publication_lag_days", "median")),
+        "publication_submission_audit.csv")
     a["submission"] = a.submission.dt.strftime("%Y-%m-%d")
+    a["epoch_publication"] = a.epoch_publication.dt.strftime("%Y-%m-%d")
     save(a[["Model", "submission", "N_B", "Y", *TASKS, "Hub License",
             "Epoch_AI_Open_Weights", "type_group", "family", "namespace",
             "license_permissive", "strict_open", "license_only_unverified",
+            "license_explicit_no", "epoch_publication", "publication_lag_days",
             "t_month", "logN"]], "audited_leaderboard_panel.csv")
-    return a, pd.DataFrame(flow)
+    return a, pd.DataFrame(flow), pub_audit
 
 
 def link_c4(panel: pd.DataFrame, c4: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -305,15 +321,21 @@ def choose_alpha(train: pd.DataFrame, use_time: bool) -> tuple[float, pd.DataFra
     if n_splits < 3:
         return 1.0, pd.DataFrame()
     for alpha in [.1, 1.0, 10.0, 100.0]:
-        errs = []
+        heldout_rows = []
         for tr, te in GroupKFold(n_splits=n_splits).split(train, groups=groups):
             fitted = score_fit(train.iloc[tr], use_time, alpha)
             pred = score_predict(fitted, train.iloc[te])
-            errs.extend((pred - train.iloc[te].Y.to_numpy()) ** 2)
-        rows.append({"alpha": alpha, "group_cv_rmse": float(np.sqrt(np.mean(errs))),
+            heldout_rows.extend({"family": fam, "squared_error": float(err)}
+                                for fam, err in zip(train.iloc[te].family,
+                                (pred - train.iloc[te].Y.to_numpy()) ** 2))
+        heldout = pd.DataFrame(heldout_rows)
+        rows.append({"alpha": alpha,
+                     "group_cv_rmse": float(np.sqrt(heldout.squared_error.mean())),
+                     "group_cv_family_balanced_rmse": float(np.sqrt(
+                         heldout.groupby("family").squared_error.mean().mean())),
                      "use_time": use_time, "n_group_folds": n_splits})
     cv = pd.DataFrame(rows)
-    return float(cv.loc[cv.group_cv_rmse.idxmin(), "alpha"]), cv
+    return float(cv.loc[cv.group_cv_family_balanced_rmse.idxmin(), "alpha"]), cv
 
 
 def fit_leaderboard(panel: pd.DataFrame) -> tuple[dict, pd.DataFrame]:
@@ -408,8 +430,8 @@ def temporal_model_comparison() -> pd.DataFrame:
     return save(pd.DataFrame(rows), "temporal_model_comparison.csv")
 
 
-def decompose(panel: pd.DataFrame, fits: dict) -> tuple[pd.DataFrame, pd.DataFrame]:
-    audits = []; pieces = []; boots = []
+def decompose(panel: pd.DataFrame, fits: dict) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    audits = []; pieces = []; boots = []; local_rows = []
     boot_rng = np.random.default_rng(20260925)
     for stratum, filt in [("strict_pretrained", panel.strict_open & panel.type_group.eq("pretrained")),
                           ("strict_posttrained", panel.strict_open & panel.type_group.eq("posttrained")),
@@ -446,6 +468,16 @@ def decompose(panel: pd.DataFrame, fits: dict) -> tuple[pd.DataFrame, pd.DataFra
             return scale, time, m11 - m00
 
         scale, time, predicted = terms(fitted, e, l)
+        local_sample = sub[sub.logN.between(lo, hi)]
+        local_fit = score_fit(local_sample, True, fitted[1].alpha)
+        local_scale, local_time, local_total = terms(local_fit, e, l)
+        local_rows.append({"stratum": stratum, "overlap_fit_n": len(local_sample),
+                           "full_fit_scale_points": scale,
+                           "overlap_fit_scale_points": local_scale,
+                           "full_fit_time_points": time,
+                           "overlap_fit_time_points": local_time,
+                           "full_fit_total_points": predicted,
+                           "overlap_fit_total_points": local_total})
         actual = float(l.Y.mean() - e.Y.mean())
         pieces.append({"stratum": stratum, "scale_points": scale,
                        "conditional_time_points": time, "model_change_points": predicted,
@@ -469,8 +501,9 @@ def decompose(panel: pd.DataFrame, fits: dict) -> tuple[pd.DataFrame, pd.DataFra
                 continue
     audit = save(pd.DataFrame(audits), "decomposition_support_audit.csv")
     result = save(pd.DataFrame(pieces), "conditional_decomposition.csv")
+    local = save(pd.DataFrame(local_rows), "decomposition_overlap_fit_sensitivity.csv")
     if boots: save(pd.DataFrame(boots), "decomposition_family_bootstrap.csv")
-    return audit, result
+    return audit, result, local
 
 
 def monthly_frontier(panel: pd.DataFrame) -> pd.DataFrame:
@@ -660,10 +693,12 @@ def draw_figures(panel: pd.DataFrame, flow: pd.DataFrame, monthly: pd.DataFrame,
 
 def write_report(flow: pd.DataFrame, links: pd.DataFrame, usable: pd.DataFrame,
                  c8: dict, bridge_info: dict, fit_metrics: pd.DataFrame,
-                 support: pd.DataFrame, decomp: pd.DataFrame, monthly: pd.DataFrame,
+                 support: pd.DataFrame, decomp: pd.DataFrame,
+                 overlap_sensitivity: pd.DataFrame, monthly: pd.DataFrame,
                  compute: pd.DataFrame, scenarios: pd.DataFrame,
                  tasks: pd.DataFrame, task_models: pd.DataFrame,
-                 temporal_comparison: pd.DataFrame) -> None:
+                 temporal_comparison: pd.DataFrame,
+                 publication_audit: pd.DataFrame) -> None:
     metric_cols = ["stratum", "variant", "n", "families", "train_n",
                    "future_holdout_n", "future_holdout_families", "future_holdout_rmse",
                    "future_holdout_family_balanced_rmse", "future_holdout_bias", "status"]
@@ -678,11 +713,15 @@ def write_report(flow: pd.DataFrame, links: pd.DataFrame, usable: pd.DataFrame,
              "2. **跨表连接：** C1/C4 只接受唯一 C4 名称、可支持的来源身份、参数量接近、发布日期可核、语言领域、Confident/Likely 且权重信息无冲突的连接。C4 给出 Hugging Face 开发者 ID 时须与 C1 命名空间一致；未给出 ID 时，同名候选在 C1 侧也须唯一。该表仅是非随机子样本，规则通过不等于人工逐项核验。",
              "3. **Loss 桥接和未来：** C6 高可比只有同一家族的 7 个 Pythia 点；C1 可比评分截至 2025-03，不能把问题三 Loss 换算成高分前沿，也没有 12/24 个月同协议回测。",
              "", "### 样本流失", "", tbl(flow), "",
+             "许可证符合预设集合但权重状态缺失的模型，与权重状态明确为 No 的模型分别计数；后者不进入‘状态未知’敏感性层。",
+             "", "### 提交日与 Epoch 元数据发布日期", "",
+             "Epoch 元数据发布日期可能对应匹配的基础模型，不能直接等同于衍生模型发布时间；晚于提交日的日期更不能视为历史可得信息。下表仅审计两日期差异，主模型的时间变量仍是排行榜提交日。",
+             "", tbl(publication_audit), "",
              f"C1/C4 名称候选 {len(links)} 行，规则接受 {int(links.accepted_link.sum())} 行，严格开放预训练且算力可用 {len(usable)} 行。候选和接受均不等于人工逐项核验。",
              "", "### C8 逐任务核算", "",
              f"扫描 {c8['json_files']} 个 JSON；解析 {c8['parsed']} 个；模型去重后 {c8['models_latest']} 个；与 C1 连接 {c8['joined_to_C1']} 个，其中同一叶任务集合 {c8['common_task_set_joined']} 个。C8 叶任务宏平均与 C1 BBH **数值标尺未证实相同**，因此只做覆盖与秩序审计，不强行回代相等。重复版本以记录时间及文件名排序取末份。",
              "", "## 规模、时间残差与验证", "",
-             "模型将六任务均分映射到 logit 空间，拟合 log10 参数量与提交时间的 Ridge；超参数在训练期按模型家族 GroupKFold 选择。2025-01 至 03 月留作时间留出，比较仅规模、规模加时间与训练均值。除按记录计算 RMSE，还按家族等权平均各家族均方误差后开方，避免提交数多的家族支配验证。时间系数吸收未观测架构、数据、后训练和选择变化，不能解释为纯技术进步。",
+             "模型将六任务均分映射到 logit 空间，拟合 log10 参数量与提交时间的 Ridge；超参数在训练期按模型家族 GroupKFold，并以家族均衡 RMSE 选择。2025-01 至 03 月留作时间留出，比较仅规模、规模加时间与训练均值。除按记录计算 RMSE，还按家族等权平均各家族均方误差后开方，避免提交数多的家族支配验证。时间系数吸收未观测架构、数据、后训练和选择变化，不能解释为纯技术进步。",
              "", tbl(metrics_view), "",
              "两模型在相同留出家族上的家族均衡 RMSE 差（含时间减仅规模）如下；重抽样单位为家族，区间不能验证 12/24 个月外推。",
              "", tbl(temporal_comparison), "", "### 共同规模支持", "", tbl(support), ""]
@@ -693,8 +732,10 @@ def write_report(flow: pd.DataFrame, links: pd.DataFrame, usable: pd.DataFrame,
         quant = boot.groupby("stratum")[["scale_points", "conditional_time_points",
                  "model_change_points"]].quantile([.025, .5, .975]).reset_index().rename(
                  columns={"level_1": "quantile"})
-        lines += ["家族重抽样分位数如下。严格后训练层的模型总变化区间跨 0；且时间模型在未来时段留出 RMSE 高于仅规模模型。因此分解只作为探索性统计，不能形成稳定的贡献比例或已验证时间增长机制。许可证单独确认、权重未确认层也仅为敏感性。",
+        lines += ["家族重抽样分位数如下。严格后训练层的模型总变化区间跨 0；且时间模型没有展示稳健的未来时段留出优势。因此分解只作为探索性统计，不能形成稳定的贡献比例或已验证时间增长机制。许可证单独确认、权重状态缺失层也仅为敏感性。",
                   "", tbl(quant), ""]
+        lines += ["将响应面只用早晚期共同参数量支持区间内的记录重拟合，可检查全样本拟合是否由区间外记录驱动。两种拟合的符号或量级不稳时，不能解释为稳健贡献。",
+                  "", tbl(overlap_sensitivity), ""]
     else:
         lines += ["所有层均未通过共同规模与独立家族门槛，不报告贡献比例。", ""]
     lines += ["### 任务敏感性", "", tbl(tasks[["score_definition", "late_minus_early"]]), "",
@@ -711,19 +752,19 @@ def write_report(flow: pd.DataFrame, links: pd.DataFrame, usable: pd.DataFrame,
               "", tbl(scenario_view), "", "## 图表与可复算文件", "",
               "图表在 `outputs/problem4/figures/`，全部由同一脚本生成。原始合同、连接逐行理由、C8 文件审计、留出指标、分解支持和重抽样、资源情景均在 `outputs/problem4/results/`。",
               "", "## 结论边界", "",
-              "排行榜提交不是随机实验；主结果仅覆盖许可证和权重可核的模型。严格开放预训练的晚期样本较少。粗粒度家族划分与模型重复提交可能缩小有效样本量。C4 的同名归一化连接仍应人工复核后用于正式论文。C8 与 C1 BBH 标尺不同。C6 桥接不支持前三问 Loss 向当前或未来排行榜前沿转译。长期情景没有同长度回测；不得写成已经验证的预测。", ""]
+              "排行榜提交不是随机实验，也不等于模型发布日期；主结果仅覆盖许可证和权重可核的模型。严格开放预训练的晚期样本较少。粗粒度家族划分与模型重复提交可能缩小有效样本量。C4 的同名归一化连接仍应人工复核后用于正式论文。C8 与 C1 BBH 标尺不同。C6 桥接不支持前三问 Loss 向当前或未来排行榜前沿转译。长期情景没有同长度回测；不得写成已经验证的预测。", ""]
     REPORT.write_text("\n".join(lines), encoding="utf-8")
 
 
 def main() -> None:
     data = load_contract()
-    panel, flow = prepare_panel(data["C2"])
+    panel, flow, publication_audit = prepare_panel(data["C2"])
     links, usable = link_c4(panel, data["C4"])
     c8_joined, c8 = process_c8(panel)
     bridge_loo, bridge_info = bridge(data["C6"])
     fits, metrics = fit_leaderboard(panel)
     temporal_comparison = temporal_model_comparison()
-    support, decomp = decompose(panel, fits)
+    support, decomp, overlap_sensitivity = decompose(panel, fits)
     monthly = monthly_frontier(panel)
     compute = compute_sensitivity(usable)
     scenarios = conditional_scenarios(panel, fits, metrics, monthly)
@@ -731,8 +772,9 @@ def main() -> None:
     task_models = task_model_validation(panel)
     draw_figures(panel, flow, monthly, decomp, bridge_loo, c8_joined, scenarios)
     write_report(flow, links, usable, c8, bridge_info, metrics,
-                 support, decomp, monthly, compute, scenarios, tasks, task_models,
-                 temporal_comparison)
+                 support, decomp, overlap_sensitivity, monthly, compute,
+                 scenarios, tasks, task_models,
+                 temporal_comparison, publication_audit)
     print(json.dumps({"strict_pretrained": int((panel.strict_open &
           panel.type_group.eq("pretrained")).sum()), "strict_posttrained": int((panel.strict_open &
           panel.type_group.eq("posttrained")).sum()), "C4_usable_compute": len(usable),
