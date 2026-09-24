@@ -1,0 +1,10 @@
+{
+  "selected_model": "quadratic_ilr_ridge",
+  "alpha": 17.78279410038923,
+  "train_rows": 512,
+  "targets": 13,
+  "bootstrap_replicates": 500,
+  "max_macro_prediction_difference": 3.552713678800501e-15,
+  "hessian_coordinates": "ILR logratio coordinates; not 17 raw mixture shares",
+  "bootstrap_unit": "independent A4 recipe row"
+}

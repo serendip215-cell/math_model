@@ -5,7 +5,8 @@ m0_profile_likelihood.pdf,B1 附件训练日志,M0 参数可识别性
 m1_quality_curves.pdf,B6 半合成,质量曲线与 M1 拟合
 m1_cv_comparison.pdf,"B6 D≤300B 完整 (N,D) 单元分组",质量位置与函数竞争模型
 marginal_elasticities.pdf,M0+M1 解析计算,参数、数据和质量边际效用
-quality_parameter_equivalence.pdf,M0/M1 Bootstrap,质量提升与参数增加的条件等价量
+quality_parameter_equivalence.pdf,M0/exp_both 联合 Bootstrap,Q_B=0.5 时质量提升与参数增加的条件等价量
+isoflop_frontier.pdf,B1 算力支持域与 exp_both 条件预测,固定 C 的最优 N 与质量分层 Loss；未把 B6 当实测算力
 domain_substitution_matrix.pdf,问题一已保存的局部扰动,17 域一阶替换矩阵；不识别互补性
 external_and_quality_risk.pdf,B2/B4/B5/B10 与 B6/B7/B8,外部误差与质量方向风险
 quality_bridge_identification.pdf,问题一 17 域质量、A16 映射与两组配比,质量变化的代理值与部分识别界；不是 B6 标尺校准

@@ -42,10 +42,11 @@ def main() -> None:
         f"C≈6ND 换算后 5% 内比例={compute['within_5_percent_fraction']:.4%}")
 
     p = params["estimate"].to_dict()
-    gamma = float(m1.loc["exp", "gamma"])
+    model = summary["m1"]["model"]
+    gamma = float(m1.loc[model, "gamma"])
     n, d = 1.0, 100.0
     m0_value = p["E"] + p["A"] * n ** (-p["alpha"]) + p["B"] * d ** (-p["beta"])
-    m1_q1_without_source_offset = p["E"] + p["A"] * n ** (-p["alpha"]) + p["B"] * d ** (-p["beta"]) * np.exp(gamma * (1 - 1.0))
+    m1_q1_without_source_offset = p["E"] + (p["A"] * n ** (-p["alpha"]) + p["B"] * d ** (-p["beta"])) * np.exp(gamma * (1 - 1.0))
     add(checks, "Q=1 退化条件", abs(m0_value - m1_q1_without_source_offset) < 1e-12,
         f"回代差={m1_q1_without_source_offset - m0_value:.3e}；B6 来源截距不属于统一结构项")
 
@@ -63,12 +64,48 @@ def main() -> None:
 
     sample = equivalence.dropna(subset=["N_multiplier"]).iloc[len(equivalence) // 2]
     n0, d0, q0, mult = sample["N_params_B"], sample["D_tokens_B"], sample["Q_score"], sample["N_multiplier"]
-    old_quality_at_more_n = (p["E"] + p["A"] * (n0 * mult) ** (-p["alpha"])
-                             + p["B"] * d0 ** (-p["beta"]) * np.exp(gamma * (1 - q0)))
-    better_quality = (p["E"] + p["A"] * n0 ** (-p["alpha"])
-                      + p["B"] * d0 ** (-p["beta"]) * np.exp(gamma * (1 - q0 - 0.1)))
+    old_quality_at_more_n = (p["E"] + (p["A"] * (n0 * mult) ** (-p["alpha"])
+                             + p["B"] * d0 ** (-p["beta"])) * np.exp(gamma * (1 - q0)))
+    better_quality = (p["E"] + (p["A"] * n0 ** (-p["alpha"])
+                      + p["B"] * d0 ** (-p["beta"])) * np.exp(gamma * (1 - q0 - 0.1)))
     eq_error = abs(old_quality_at_more_n - better_quality)
-    add(checks, "质量参数等价式回代", eq_error < 1e-8, f"Loss 回代差={eq_error:.3e}")
+    add(checks, "所选模型质量参数等价式回代", eq_error < 1e-8,
+        f"{model} Loss 回代差={eq_error:.3e}")
+
+    frontier = pd.read_csv(RESULTS / "isoflop_frontier.csv")
+    grid = frontier[frontier["source"] == "model_frontier"]
+    spread = grid.groupby("C_FLOPs_1e21")["N_star_B"].agg(lambda x: float(x.max() - x.min()))
+    add(checks, "IsoFLOP 最优配置质量不变性", bool((spread < 1e-12).all()),
+        f"{model} 固定 C 时 N* 跨 Q_B 最大差={spread.max():.3e}")
+    representative = grid[np.isclose(grid["Q_score"], 1.0)].copy()
+    b1_bounds = pd.read_csv(DATA / "pythia_training_log_existing.csv")
+    nlo, nhi = b1_bounds["N_params_B"].min(), b1_bounds["N_params_B"].max()
+    dlo, dhi = b1_bounds["D_tokens_B"].min(), b1_bounds["D_tokens_B"].max()
+    c = representative["C_FLOPs_1e21"].to_numpy()
+    analytic = (p["alpha"] * p["A"] * (c / .006) ** p["beta"] /
+                (p["beta"] * p["B"])) ** (1 / (p["alpha"] + p["beta"]))
+    lower = np.maximum(nlo, c / (.006 * dhi))
+    upper = np.minimum(nhi, c / (.006 * dlo))
+    analytic = np.clip(analytic, lower, upper)
+    relative_difference = np.max(np.abs(representative["N_star_B"].to_numpy() / analytic - 1))
+    add(checks, "IsoFLOP 最优 N 闭式复核", bool(relative_difference < .02),
+        f"受支持域约束的闭式最优与网格搜索最大相对差={relative_difference:.3%}")
+
+    pair = pd.read_csv(RESULTS / "local_pair_nonadditivity.csv")
+    pair_counts = pair.groupby("anchor").size().to_dict()
+    unique_pairs = pair.groupby("anchor").apply(
+        lambda z: len(set(zip(z["domain_i"], z["domain_j"]))), include_groups=False).to_dict()
+    pair_ok = (pair_counts == {"training_mean": 136, "recommended_centroid": 136}
+               and unique_pairs == pair_counts
+               and pair["bh_q"].between(0, 1).all()
+               and (pair["domain_i"] != pair["domain_j"]).all())
+    add(checks, "二阶局部对比与 FDR 口径", pair_ok,
+        f"各锚点无序对数={pair_counts}；仅解释为指定路径的模型非加性")
+
+    p1_export = json.loads((PROJECT / "outputs" / "problem1" / "mixture" / "results" /
+                            "selected_response_export_audit.json").read_text(encoding="utf-8"))
+    add(checks, "第一问响应面回代", p1_export["max_macro_prediction_difference"] < 1e-8,
+        f"与第一问保存的训练预测最大差={p1_export['max_macro_prediction_difference']:.3e}")
 
     anti_sym = substitutions.pivot(index="increase_domain", columns="decrease_domain",
                                    values="delta_macro_loss_linearized")
@@ -87,7 +124,8 @@ def main() -> None:
         "data_audit.csv", "compute_consistency.csv", "m0_parameters.csv", "m0_loo_predictions.csv", "m0_profile_likelihood.csv",
         "m0_external_metrics.csv", "m1_grouped_cv_summary.csv", "m1_quality_models.csv",
         "quality_direction_audit.csv", "marginal_elasticities.csv", "quality_parameter_equivalence.csv",
-        "domain_substitution_matrix.csv", "problem2_summary.json", "figure_manifest.csv",
+        "domain_substitution_matrix.csv", "local_pair_nonadditivity.csv", "isoflop_frontier.csv",
+        "problem2_summary.json", "figure_manifest.csv",
     ]
     missing_results = [name for name in required if not (RESULTS / name).exists()]
     add(checks, "结果文件完整性", not missing_results, f"要求 {len(required)} 项，缺失={missing_results}")
@@ -147,7 +185,8 @@ def main() -> None:
 - M0 按完整参数规模轨迹验证，未随机拆分同一轨迹。
 - M1 的质量证据来自半合成 B6，B7 只作新增质量水平敏感性。
 - B8 的质量方向冲突已复算，因此没有参与拟合。
-- 配比替换矩阵是问题一已保存边际效应的一阶恢复；缺少 Hessian 与 Bootstrap 系数时不检验互补性。
+- 一阶替换矩阵沿用第一问保存的边际效应；二阶响应面系数与配方行 Bootstrap 已单独导出。136 个无序领域对的 BH-FDR 只描述指定扰动路径上的模型非加性，不证明因果互补。
+- 质量参数等价式按分组 CV 选中的 exp_both 结构回代；IsoFLOP 最优配置的不变性亦已检查。
 - 第一问 17 域质量代理值已用于配比质量审计；A/B 质量标尺和联合 Loss 没有成对实验标定，因此不报告联合精度。
 - B10 Loss 为估算值，只作外推风险边界。
 """

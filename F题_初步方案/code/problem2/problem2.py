@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy.optimize import least_squares
-from scipy.stats import spearmanr
+from scipy.stats import norm, spearmanr
 from sklearn.model_selection import GroupKFold
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from quality_bridge import build_quality_bridge
@@ -502,26 +502,42 @@ def fit_m1_module(m0fit: M0Fit, b6: pd.DataFrame, b7: pd.DataFrame, b8: pd.DataF
     save_csv(pd.DataFrame(region_rows), "m1_region_validation.csv")
     (RESULTS / "m1_model_selection.json").write_text(json.dumps({"selected_model": selected_model, "selection_metric": "5-fold grouped RMSE on D<=300B", "Q_support": [0.1, 1.0]}, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    exp_fit = fit_df.set_index("model").loc["exp_D"]
+    exp_fit = fit_df.set_index("model").loc[selected_model]
     cell_keys6 = set(zip(b6["N_params_B"], b6["D_tokens_B"], b6["Q_score"]))
     is_new = np.array([(n, d, q) not in cell_keys6 for n, d, q in zip(b7["N_params_B"], b7["D_tokens_B"], b7["Q_score"])])
     b7_new = b7.loc[is_new].copy()
     b7_pred = predict_m1(m0fit.params, b7_new["N_params_B"], b7_new["D_tokens_B"], b7_new["Q_score"],
-                         exp_fit["delta"], exp_fit["gamma"], "exp", "D")
-    b7_refit = fit_quality(b7, m0fit.params, "exp", placement="D")
+                         exp_fit["delta"], exp_fit["gamma"], sel_kind, sel_place)
+    b7_refit = fit_quality(b7, m0fit.params, sel_kind, placement=sel_place)
     sensitivity = pd.DataFrame([
         {"dataset": "B6", **adjacent_q_monotonicity(b6)},
         {"dataset": "B7", **adjacent_q_monotonicity(b7)},
         {"dataset": "B8", **adjacent_q_monotonicity(b8)},
     ])
-    external = pd.DataFrame([{
-        "dataset": "B7_new_Q_only", "gamma_B6": exp_fit["gamma"], "gamma_refit_B7": b7_refit["gamma"],
-        "gamma_relative_change": (b7_refit["gamma"] - exp_fit["gamma"]) / max(exp_fit["gamma"], 1e-12),
-        **metrics(b7_new["val_loss"], b7_pred),
-    }])
+    if len(b6_extra):
+        direction_extra = adjacent_q_monotonicity(b6_extra)
+        region_rows[-1].update({"n": len(b6_extra), "q_adjacent_pairs": direction_extra["comparisons"],
+                                "q_nonincrease_fraction": direction_extra["nonincrease_fraction"]})
+        save_csv(pd.DataFrame(region_rows), "m1_region_validation.csv")
+    overlap = b6[["N_params_B", "D_tokens_B", "Q_score", "val_loss"]].merge(
+        b8[["N_params_B", "D_tokens_B", "Q_score", "val_loss", "data_type"]],
+        on=["N_params_B", "D_tokens_B", "Q_score"], suffixes=("_B6", "_B8"))
+    overlap["B8_minus_B6_loss"] = overlap["val_loss_B8"] - overlap["val_loss_B6"]
+    save_csv(overlap, "b6_b8_overlap_loss.csv")
+    external_rows = []
+    for region_name, region_mask in [("B7_new_Q_D_le_300B", b7_new["D_tokens_B"] <= 300),
+                                     ("B7_new_Q_D_600B", b7_new["D_tokens_B"] > 300)]:
+        part = b7_new.loc[region_mask]
+        external_rows.append({
+            "dataset": region_name, "model": selected_model, "gamma_B6": exp_fit["gamma"],
+            "gamma_refit_B7": b7_refit["gamma"],
+            "gamma_relative_change": (b7_refit["gamma"] - exp_fit["gamma"]) / max(exp_fit["gamma"], 1e-12),
+            **metrics(part["val_loss"], b7_pred[region_mask.to_numpy()]),
+        })
+    external = pd.DataFrame(external_rows)
 
     boot = []
-    cell_groups = list(b6.groupby(["N_params_B", "D_tokens_B"]))
+    cell_groups = list(b6_interp.groupby(["N_params_B", "D_tokens_B"]))
     for rep in range(300):
         picks = RNG.integers(0, len(cell_groups), len(cell_groups))
         sample = pd.concat([cell_groups[i][1] for i in picks], ignore_index=True)
@@ -530,18 +546,19 @@ def fit_m1_module(m0fit: M0Fit, b6: pd.DataFrame, b7: pd.DataFrame, b8: pd.DataF
             if row0.empty:
                 continue
             params0 = {name: float(row0.iloc[0][name]) for name in M0_NAMES}
-            qfit = fit_quality(sample, params0, "exp", placement="D")
-            boot.append({"replicate": rep, "delta": qfit["delta"], "gamma": qfit["gamma"]})
+            qfit = fit_quality(sample, params0, sel_kind, placement=sel_place)
+            boot.append({"replicate": rep, "model": selected_model,
+                         "delta": qfit["delta"], "gamma": qfit["gamma"]})
         except Exception:
             continue
     boot_df = pd.DataFrame(boot)
     fit_df["gamma_low"] = np.nan
     fit_df["gamma_high"] = np.nan
-    mask = fit_df["model"] == "exp_D"
+    mask = fit_df["model"] == selected_model
     fit_df.loc[mask, "gamma_low"] = boot_df["gamma"].quantile(0.025)
     fit_df.loc[mask, "gamma_high"] = boot_df["gamma"].quantile(0.975)
-    fit_df.loc[fit_df["model"] == "exp", "gamma_low"] = fit_df.loc[mask, "gamma_low"].iloc[0]
-    fit_df.loc[fit_df["model"] == "exp", "gamma_high"] = fit_df.loc[mask, "gamma_high"].iloc[0]
+    # The exp alias is a legacy D-only candidate; its interval is intentionally
+    # not borrowed from the selected model's different placement.
 
     save_csv(cv, "m1_grouped_cv_folds.csv")
     save_csv(cv_summary, "m1_grouped_cv_summary.csv")
@@ -554,22 +571,29 @@ def fit_m1_module(m0fit: M0Fit, b6: pd.DataFrame, b7: pd.DataFrame, b8: pd.DataF
 
 
 def elasticity_and_equivalence(m0: M0Fit, gamma: float, m0_boot: pd.DataFrame,
-                               gamma_boot: pd.DataFrame, b6: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+                               gamma_boot: pd.DataFrame, b6: pd.DataFrame,
+                               placement: str, model: str) -> tuple[pd.DataFrame, pd.DataFrame]:
     rows = []
     n_grid = np.geomspace(b6["N_params_B"].min(), b6["N_params_B"].max(), 80)
     d_values = [float(b6["D_tokens_B"].quantile(q)) for q in [0.25, 0.5, 0.75]]
     for d in d_values:
         for q in [0.5, 0.7, 0.9]:
             x = m0.params["A"] * n_grid ** (-m0.params["alpha"])
-            y_value = m0.params["B"] * d ** (-m0.params["beta"]) * np.exp(gamma * (1 - q))
-            y = np.full_like(n_grid, y_value, dtype=float)
+            g = np.exp(gamma * (1 - q))
+            y = np.full_like(n_grid, m0.params["B"] * d ** (-m0.params["beta"]), dtype=float)
+            if placement == "both":
+                x *= g; y *= g
+            elif placement == "D":
+                y *= g
+            else:
+                raise ValueError(placement)
             total = x + y
             for n, xn, yn, tn in zip(n_grid, x, y, total):
-                rows.append({"N_params_B": n, "D_tokens_B": d, "Q_score": q,
+                rows.append({"model": model, "N_params_B": n, "D_tokens_B": d, "Q_score": q,
                              "parameter_elasticity": m0.params["alpha"] * xn / tn,
                              "data_elasticity": m0.params["beta"] * yn / tn,
-                             "quality_semielasticity": gamma * yn / tn,
-                             "quality_log_elasticity": q * gamma * yn / tn})
+                             "quality_semielasticity": gamma if placement == "both" else gamma * yn / tn,
+                             "quality_log_elasticity": q * (gamma if placement == "both" else gamma * yn / tn)})
     elasticity = pd.DataFrame(rows)
 
     common = sorted(set(m0_boot.get("replicate", pd.Series(dtype=int)).astype(int)) &
@@ -583,9 +607,14 @@ def elasticity_and_equivalence(m0: M0Fit, gamma: float, m0_boot: pd.DataFrame,
                 if q + 0.1 > 1:
                     continue
                 def multiplier(params: dict[str, float], g: float) -> float:
-                    y0 = params["B"] * d ** (-params["beta"]) * math.exp(g * (1 - q))
-                    y1 = params["B"] * d ** (-params["beta"]) * math.exp(g * (1 - q - 0.1))
-                    bracket = n ** (-params["alpha"]) + (y1 - y0) / params["A"]
+                    if placement == "both":
+                        x0 = params["A"] * n ** (-params["alpha"])
+                        y0 = params["B"] * d ** (-params["beta"])
+                        bracket = (math.exp(-g * 0.1) * (x0 + y0) - y0) / params["A"]
+                    else:
+                        y0 = params["B"] * d ** (-params["beta"]) * math.exp(g * (1 - q))
+                        y1 = params["B"] * d ** (-params["beta"]) * math.exp(g * (1 - q - 0.1))
+                        bracket = n ** (-params["alpha"]) + (y1 - y0) / params["A"]
                     return float(bracket ** (-1 / params["alpha"]) / n) if bracket > 0 else float("nan")
                 estimate = multiplier(m0.params, gamma)
                 sims = []
@@ -594,7 +623,7 @@ def elasticity_and_equivalence(m0: M0Fit, gamma: float, m0_boot: pd.DataFrame,
                     sims.append(multiplier(p, float(gamma_joint.loc[rep, "gamma"])))
                 valid = np.asarray([v for v in sims if np.isfinite(v)])
                 equivalence_rows.append({
-                    "N_params_B": n, "D_tokens_B": d, "Q_score": q, "delta_Q": 0.1,
+                    "model": model, "N_params_B": n, "D_tokens_B": d, "Q_score": q, "delta_Q": 0.1,
                     "N_multiplier": estimate,
                     "bootstrap_low": float(np.quantile(valid, 0.025)) if len(valid) else np.nan,
                     "bootstrap_high": float(np.quantile(valid, 0.975)) if len(valid) else np.nan,
@@ -608,7 +637,8 @@ def elasticity_and_equivalence(m0: M0Fit, gamma: float, m0_boot: pd.DataFrame,
     return elasticity, equivalence
 
 
-def isoflop_frontier(m0: M0Fit, gamma: float, b1: pd.DataFrame) -> pd.DataFrame:
+def isoflop_frontier(m0: M0Fit, gamma: float, b1: pd.DataFrame,
+                     placement: str, model: str) -> pd.DataFrame:
     """Compute model and empirical compute-budget frontiers using measured C."""
     rows = []
     q_grid = [0.1, 0.3, 0.5, 0.7, 0.9, 1.0]
@@ -623,16 +653,16 @@ def isoflop_frontier(m0: M0Fit, gamma: float, b1: pd.DataFrame) -> pd.DataFrame:
             ds = c / (0.006 * ns)
             ok = (ds >= dlo) & (ds <= dhi)
             if not ok.any(): continue
-            pred = predict_m1(m0.params, ns[ok], ds[ok], np.full(ok.sum(), q), 0.0, gamma, "exp", "D")
+            pred = predict_m1(m0.params, ns[ok], ds[ok], np.full(ok.sum(), q), 0.0, gamma, "exp", placement)
             j = int(np.argmin(pred)); n_star = float(ns[ok][j]); d_star = float(ds[ok][j])
-            rows.append({"source": "model_frontier", "C_FLOPs_1e21": c, "Q_score": q,
+            rows.append({"source": "model_frontier", "model": model, "C_FLOPs_1e21": c, "Q_score": q,
                          "N_star_B": n_star, "D_star_B": d_star, "predicted_loss": float(pred[j])})
     # Empirical isoFLOP points are selected only from B1 observations; no
     # interpolation of observed losses is presented as measurement.
     b = b1.copy(); b["C_bin"] = pd.qcut(b["C_FLOPs_1e21"], q=20, duplicates="drop")
     for label, g in b.groupby("C_bin", observed=True):
         r = g.loc[g["val_loss"].idxmin()]
-        rows.append({"source": "empirical_B1_bin_min", "C_FLOPs_1e21": float(g.C_FLOPs_1e21.median()),
+        rows.append({"source": "empirical_B1_bin_min", "model": "observed_B1", "C_FLOPs_1e21": float(g.C_FLOPs_1e21.median()),
                      "Q_score": np.nan, "N_star_B": float(r.N_params_B), "D_star_B": float(r.D_tokens_B),
                      "predicted_loss": float(r.val_loss)})
     result = pd.DataFrame(rows)
@@ -640,9 +670,83 @@ def isoflop_frontier(m0: M0Fit, gamma: float, b1: pd.DataFrame) -> pd.DataFrame:
     return result
 
 
+def local_pair_nonadditivity(rec: pd.DataFrame) -> dict:
+    """Exploratory nonadditivity of the selected A4 response on a defined path.
+
+    Wald p values use recipe-bootstrap standard deviations; BH is applied to
+    136 unordered pairs separately at each anchor. This is model uncertainty,
+    not causal domain complementarity.
+    """
+    path = P1 / "mixture" / "results"
+    surface_file = path / "selected_response_surface.npz"
+    bootstrap_file = path / "selected_response_bootstrap.npz"
+    if not (surface_file.exists() and bootstrap_file.exists()):
+        return {"identified": False, "reason": "selected response surface/bootstrap export missing"}
+    surface = np.load(surface_file)
+    draws = np.load(bootstrap_file)["macro_coefficients"]
+    domains = list(surface["domains"].astype(str))
+    basis = surface["basis"]
+    powers = surface["powers"]
+    coef = surface["coefficients"].mean(axis=0)
+
+    def features(p: np.ndarray) -> np.ndarray:
+        p = np.maximum(p, 1e-6)
+        p = p / p.sum()
+        z = np.log(p) @ basis.T
+        return np.prod(z[None, :] ** powers, axis=1)
+
+    def change(base: np.ndarray, add: tuple[int, ...], step: float) -> np.ndarray:
+        result = base.copy()
+        mask = np.ones(len(base), dtype=bool)
+        mask[list(add)] = False
+        result[mask] *= (1 - base[list(add)].sum() - len(add) * step) / base[mask].sum()
+        result[list(add)] += step
+        return result
+
+    rows = []
+    for anchor, field in [("training_mean", "training_mean_share"),
+                          ("recommended_centroid", "recommended_share")]:
+        base = rec.set_index("domain").loc[domains, field].to_numpy(float).copy()
+        base /= base.sum()
+        step = .005
+        f0 = features(base)
+        individual = [features(change(base, (i,), step)) for i in range(len(domains))]
+        anchor_rows = []
+        for i in range(len(domains)):
+            for j in range(i + 1, len(domains)):
+                contrast = features(change(base, (i, j), step)) - individual[i] - individual[j] + f0
+                estimate = float(contrast @ coef)
+                samples = draws @ contrast
+                sd = float(np.std(samples, ddof=1))
+                p = float(2 * norm.sf(abs(estimate / sd))) if sd > 0 else np.nan
+                anchor_rows.append({"anchor": anchor, "domain_i": domains[i], "domain_j": domains[j],
+                                    "step_each": step, "nonadditivity_loss": estimate,
+                                    "bootstrap_sd": sd, "bootstrap_low": float(np.quantile(samples, .025)),
+                                    "bootstrap_high": float(np.quantile(samples, .975)),
+                                    "wald_p": p})
+        # Benjamini-Hochberg on 136 unordered pairs; directed swaps are not
+        # separate pair-interaction hypotheses.
+        pvals = np.asarray([r["wald_p"] for r in anchor_rows])
+        order = np.argsort(pvals)
+        adjusted = np.empty(len(pvals))
+        adjusted[order] = np.minimum.accumulate((pvals[order] * len(pvals) /
+                                                  np.arange(1, len(pvals) + 1))[::-1])[::-1]
+        for row, qvalue in zip(anchor_rows, adjusted):
+            row["bh_q"] = min(1.0, float(qvalue))
+            row["exploratory_fdr_0_05"] = bool(qvalue <= .05)
+        rows.extend(anchor_rows)
+    save_csv(pd.DataFrame(rows), "local_pair_nonadditivity.csv")
+    return {"identified": True, "pairs_per_anchor": 136, "anchors": 2,
+            "bootstrap_replicates": len(draws),
+            "fdr_discoveries_training_mean": int(sum(r["exploratory_fdr_0_05"] for r in rows if r["anchor"] == "training_mean")),
+            "fdr_discoveries_recommended_centroid": int(sum(r["exploratory_fdr_0_05"] for r in rows if r["anchor"] == "recommended_centroid")),
+            "interpretation": "local fitted nonadditivity under proportional redistribution; exploratory Wald/BH, not causal complementarity"}
+
+
 def mixture_module() -> tuple[pd.DataFrame, pd.DataFrame, dict]:
     effects = pd.read_csv(P1 / "mixture" / "results" / "mixture_marginal_effects.csv")
     rec = pd.read_csv(P1 / "mixture" / "results" / "recommended_mixture.csv")
+    pair_audit = local_pair_nonadditivity(rec)
     summary = json.loads((P1 / "mixture" / "results" / "mixture_model_summary.json").read_text(encoding="utf-8"))
     decay = json.loads((P1 / "scaling_bridge" / "effect_decay_summary.json").read_text(encoding="utf-8"))
     decay_path = P1 / "scaling_bridge" / "effect_magnitude_decay.csv"
@@ -681,7 +785,8 @@ def mixture_module() -> tuple[pd.DataFrame, pd.DataFrame, dict]:
         weight_rows = []
         for _, r in decay_df.iterrows():
             for scale, value in scale_map.items():
-                weight_rows.append({"domain": r["domain"], "scale": scale, "scale_B": value,
+                weight_rows.append({"domain": r["domain"], "scale": scale, "N_over_N0": value,
+                                    "N0_params": 1000000,
                                     "kappa": r["kappa"], "effect_magnitude_1m": r["effect_mag_1m"],
                                     "decay_weight": float(value ** (-r["kappa"])),
                                     "signed_kappa_warning": bool(r["kappa"] < 0)})
@@ -699,13 +804,14 @@ def mixture_module() -> tuple[pd.DataFrame, pd.DataFrame, dict]:
         "reference_mixture": "problem1 training mean",
         "substitution_type": "first-order local linearization from saved one-domain perturbations",
         "curvature_or_complementarity_identified": False,
-        "reason": "problem1 outputs do not serialize the fitted Hessian or bootstrap coefficient draws",
+        "local_model_curvature_identified": bool(pair_audit["identified"]),
+        "reason": "17x17 directed first-order swaps do not identify intrinsic complementarity; see separate local pair audit",
+        "local_pair_nonadditivity": pair_audit,
         "problem1_test_1m_macro_rmse": summary["test_1m_macro_rmse_quadratic"],
         "effect_decay_kappa_median": decay["kappa_median"],
         "effect_decay_domain_specific": bool(not decay_df.empty),
-        "multiple_testing": "BH-FDR not computable from saved problem1 outputs; no edge labelled significant",
+        "multiple_testing": "136 unordered model-based pair contrasts per anchor are BH-adjusted separately; no causal label",
         "reference_anchors": ["training_mean", "recommended_centroid"],
-        "observed_scale_weights": {k: v for k, v in decay["w_by_scale"].items() if k in ["train_1m", "test_60m", "test_1B"]},
     }
     save_csv(local, "mixture_local_gradients.csv")
     save_csv(matrix, "domain_substitution_matrix.csv")
@@ -763,7 +869,8 @@ def make_figures(frames: dict[str, pd.DataFrame], m0: M0Fit, loo: pd.DataFrame, 
     axes[0].legend(); fig.tight_layout(); path = FIGURES / "m0_profile_likelihood.pdf"; fig.savefig(path, bbox_inches="tight"); plt.close(fig)
     manifest.append((path.name, "B1 附件训练日志", "M0 参数可识别性"))
 
-    exp_fit = fit_df.set_index("model").loc["exp"]
+    selected_model = json.loads((RESULTS / "m1_model_selection.json").read_text(encoding="utf-8"))["selected_model"]
+    exp_fit = fit_df.set_index("model").loc[selected_model]
     b6 = frames["B6"]
     fig, axes = plt.subplots(1, 3, figsize=(11.5, 3.8), sharey=True)
     cells = [(b6["N_params_B"].min(), b6["D_tokens_B"].min()),
@@ -776,7 +883,7 @@ def make_figures(frames: dict[str, pd.DataFrame], m0: M0Fit, loo: pd.DataFrame, 
         qg = np.linspace(sub["Q_score"].min(), sub["Q_score"].max(), 100)
         ax.scatter(sub["Q_score"], sub["val_loss"], color="#111827", s=24, label="B6 半合成")
         ax.plot(qg, predict_m1(m0.params, np.full_like(qg, ni), np.full_like(qg, di), qg,
-                               exp_fit["delta"], exp_fit["gamma"], "exp"), color="#2563eb", label="M1")
+                               exp_fit["delta"], exp_fit["gamma"], "exp", "both" if selected_model == "exp_both" else "D"), color="#2563eb", label=selected_model)
         ax.set_xlabel("质量 Q"); ax.set_title(f"N={ni:g}B, D={di:g}B"); ax.grid(alpha=.2)
     axes[0].set_ylabel("验证 Loss"); axes[0].legend(); fig.tight_layout()
     path = FIGURES / "m1_quality_curves.pdf"; fig.savefig(path, bbox_inches="tight"); plt.close(fig)
@@ -802,14 +909,33 @@ def make_figures(frames: dict[str, pd.DataFrame], m0: M0Fit, loo: pd.DataFrame, 
     axes[0].legend(); fig.tight_layout(); path = FIGURES / "marginal_elasticities.pdf"; fig.savefig(path, bbox_inches="tight"); plt.close(fig)
     manifest.append((path.name, "M0+M1 解析计算", "参数、数据和质量边际效用"))
 
-    eq = equivalence[np.isclose(equivalence["D_tokens_B"], med_d)]
-    pivot = eq.pivot(index="N_params_B", columns="Q_score", values="N_multiplier")
+    eq = equivalence[np.isclose(equivalence["Q_score"], 0.5)]
+    pivot = eq.pivot(index="N_params_B", columns="D_tokens_B", values="N_multiplier")
     fig, ax = plt.subplots(figsize=(7.2, 5.1))
     image = ax.imshow(pivot.to_numpy(), aspect="auto", cmap="YlOrRd", origin="lower")
-    ax.set_xticks(range(len(pivot.columns)), [f"{x:.1f}" for x in pivot.columns]); ax.set_yticks(range(len(pivot.index)), [f"{x:g}" for x in pivot.index])
-    ax.set_xlabel("初始质量 Q"); ax.set_ylabel("参数规模 N（十亿）"); fig.colorbar(image, ax=ax, label="Q 提升 0.1 的参数等价倍数")
+    ax.set_xticks(range(len(pivot.columns)), [f"{x:g}" for x in pivot.columns]); ax.set_yticks(range(len(pivot.index)), [f"{x:g}" for x in pivot.index])
+    if 600.0 in pivot.columns:
+        ax.axvline(list(pivot.columns).index(600.0) - .5, color="#374151", ls="--", lw=1)
+    ax.set_xlabel("训练数据量 D（十亿 Token）"); ax.set_ylabel("参数规模 N（十亿）"); fig.colorbar(image, ax=ax, label="Q_B 提升 0.1 的参数等价倍数")
     fig.tight_layout(); path = FIGURES / "quality_parameter_equivalence.pdf"; fig.savefig(path, bbox_inches="tight"); plt.close(fig)
-    manifest.append((path.name, "M0/M1 Bootstrap", "质量提升与参数增加的条件等价量"))
+    manifest.append((path.name, f"M0/{selected_model} 联合 Bootstrap", "Q_B=0.5 时质量提升与参数增加的条件等价量"))
+
+    frontier = pd.read_csv(RESULTS / "isoflop_frontier.csv")
+    model_front = frontier[frontier["source"] == "model_frontier"]
+    fig, axes = plt.subplots(1, 2, figsize=(10.5, 4.0))
+    for q in [0.1, 0.5, 1.0]:
+        sub = model_front[np.isclose(model_front["Q_score"], q)]
+        axes[0].plot(sub["C_FLOPs_1e21"], sub["N_star_B"], label=f"Q_B={q:g}")
+        axes[1].plot(sub["C_FLOPs_1e21"], sub["predicted_loss"], label=f"Q_B={q:g}")
+    empirical = frontier[frontier["source"] == "empirical_B1_bin_min"]
+    axes[0].scatter(empirical["C_FLOPs_1e21"], empirical["N_star_B"],
+                    color="#111827", marker="x", s=20, label="B1分桶观测", zorder=4)
+    axes[0].set_xscale("log"); axes[0].set_yscale("log")
+    axes[0].set_xlabel("算力 C（10²¹ FLOPs）"); axes[0].set_ylabel("模型最优 N（十亿）")
+    axes[1].set_xscale("log"); axes[1].set_xlabel("算力 C（10²¹ FLOPs）"); axes[1].set_ylabel("预测 Loss")
+    for ax in axes: ax.grid(alpha=.2); ax.legend()
+    fig.tight_layout(); path = FIGURES / "isoflop_frontier.pdf"; fig.savefig(path, bbox_inches="tight"); plt.close(fig)
+    manifest.append((path.name, f"B1 算力支持域与 {selected_model} 条件预测", "固定 C 的最优 N 与质量分层 Loss；未把 B6 当实测算力"))
 
     feasible = substitutions[substitutions["feasible_at_training_mean"]]
     domains = sorted(set(substitutions["increase_domain"]))
@@ -845,12 +971,14 @@ def write_report(audit: pd.DataFrame, m0params: pd.DataFrame, m0metrics: pd.Data
                  bridge: dict) -> None:
     p = dict(zip(m0params["parameter"], m0params["estimate"]))
     ci = m0params.set_index("parameter")
-    exp_row = m1fits.set_index("model").loc["exp"]
+    selection = json.loads((RESULTS / "m1_model_selection.json").read_text(encoding="utf-8"))
+    selected_model = selection["selected_model"]
+    exp_row = m1fits.set_index("model").loc[selected_model]
     cv_index = cv.set_index("model")
-    improvement = 1 - cv_index.loc["exp", "rmse_mean"] / cv_index.loc["baseline", "rmse_mean"]
+    improvement = 1 - cv_index.loc[selected_model, "rmse_mean"] / cv_index.loc["baseline", "rmse_mean"]
     cv_folds = pd.read_csv(RESULTS / "m1_grouped_cv_folds.csv")
     fold_pivot = cv_folds.pivot(index="fold", columns="model", values="rmse")
-    exp_win_folds = int((fold_pivot["exp"] < fold_pivot["baseline"]).sum())
+    exp_win_folds = int((fold_pivot[selected_model] < fold_pivot["baseline"]).sum())
     loo = m0metrics.set_index("split").loc["B1_leave_one_N"]
     b7 = b7sens.iloc[0]
     b8dir = direction.set_index("dataset").loc["B8"]
@@ -860,13 +988,18 @@ def write_report(audit: pd.DataFrame, m0params: pd.DataFrame, m0metrics: pd.Data
     best_sub = feasible.nsmallest(5, "delta_macro_loss_linearized")
     model_accepted = bool(improvement > 0 and exp_win_folds >= 4 and exp_row["gamma"] > 0 and
                           direction.set_index("dataset").loc["B7", "nonincrease_fraction"] > .5)
-    selection = json.loads((RESULTS / "m1_model_selection.json").read_text(encoding="utf-8"))
-    selected_model = selection["selected_model"]
+    region = pd.read_csv(RESULTS / "m1_region_validation.csv")
+    extrap = region[region["region"] == "extrapolation_D_gt_300B"]
+    overlap = pd.read_csv(RESULTS / "b6_b8_overlap_loss.csv")
+    eq_quantiles = equivalence["N_multiplier"].quantile([.05, .25, .5, .75, .95]).rename_axis("quantile").reset_index()
+    decay_weights = pd.read_csv(RESULTS / "domain_decay_weights.csv")
+    decay_1b = decay_weights[decay_weights["scale"] == "test_1B"]
+    negative_decay = decay_1b[decay_1b["kappa"] < 0][["domain", "kappa", "decay_weight"]]
     summary = {
         "seed": SEED,
         "m0": {**p, "loo_rmse": float(loo["rmse"]), "loo_mae": float(loo["mae"]),
                "loo_spearman": float(loo["spearman"])},
-        "m1": {"gamma": float(exp_row["gamma"]), "gamma_low": float(exp_row["gamma_low"]),
+        "m1": {"model": selected_model, "gamma": float(exp_row["gamma"]), "gamma_low": float(exp_row["gamma_low"]),
                "gamma_high": float(exp_row["gamma_high"]), "grouped_cv_improvement": float(improvement),
                "cv_folds_better_than_baseline": exp_win_folds,
                "B7_new_Q_rmse": float(b7["rmse"]), "accepted": model_accepted},
@@ -904,37 +1037,47 @@ B1 的计算量字段满足 $C\approx6ND$：换算到附件单位后为 $C_{{10^
 
 {markdown_table(ext_view, 5)}
 
-B4/B5 的 Loss 口径存在模型族、分词器和验证集差异，因此原始 RMSE 不能单独解释为结构失效；表中同时给出去均值 RMSE 与排序相关。B10 是估算值，只描述远域偏离，不作为真实精度证据。
+B4/B5 的 Loss 口径存在模型族、分词器和验证集差异，因此原始 RMSE 不能单独解释为结构失效；表中同时给出去均值 RMSE 与排序相关。共同 $E$ 与数据集/模型族截距在这些异协议数据上未被识别，故不从 B4/B5 强行反演 $E,\alpha,\beta$ 的“真实认知区间”。B10 是估算值，只描述远域偏离，不作为真实精度证据。
 
 ## 3. M1：质量修正
 
-主候选为 $L_1=\delta_B+E+A N^{{-\alpha}}+B D^{{-\beta}}\exp[\gamma_Q(1-Q)]$。$\delta_B$ 只校准 B6 与 B1 的来源基线，不改变质量方向。
+候选模型允许质量作用于 D 项、N 项或两项。所选 **{selected_model}** 的形式为 $L_1=\delta_B+E+\exp[\gamma_Q(1-Q_B)](A N^{{-\alpha}}+B D^{{-\beta}})$。$Q_B$ 是 B6 的原生标尺，观测支持范围为 $[0.1,1.0]$，不把结论外推到 $Q_B=0$；$\delta_B$ 只校准 B6 与 B1 的来源基线。
 
 {markdown_table(cv_view, 5)}
 
-竞争模型包括 Q 作用于 D 项（exp_D）、N 项（exp_N）和 N、D 两项（exp_both），并在 D≤300B 的完整单元分组交叉验证中选择 **{selected_model}**。D=600B 单独作为外推审计，不并入插值 CV。指数 D-only 的质量参数为 $\gamma_Q={exp_row['gamma']:.4f}$，同一响应的轨迹单元 Bootstrap 95% 区间为 [{exp_row['gamma_low']:.4f}, {exp_row['gamma_high']:.4f}]；相对无质量项的 RMSE 改善为 {improvement*100:.2f}%。B7 新增 Q 水平的外推 RMSE 为 {b7['rmse']:.4f}。这组结果不支持事先把质量作用位置固定为 D 项。
+在 D≤300B 的完整单元分组交叉验证中选择 **{selected_model}**。D=600B 单独作为外推审计，不并入插值 CV。所选模型的 $\gamma_Q={exp_row['gamma']:.4f}$，配对的轨迹/单元 Bootstrap 95% 区间为 [{exp_row['gamma_low']:.4f}, {exp_row['gamma_high']:.4f}]；相对无质量项的 RMSE 改善为 {improvement*100:.2f}%。B7 新增 $Q_B=0.5/0.7$ 的验证按 D≤300B 与 D=600B 分开：
+
+{markdown_table(b7sens[["dataset", "n", "rmse", "mae"]], 5)}
+
+D=600B 外推审计：
+
+{markdown_table(extrap[["model", "n", "rmse", "mae", "q_adjacent_pairs", "q_nonincrease_fraction"]], 5)}
 
 B6、B7、B8 的相邻 Q 方向审计如下：
 
 {markdown_table(direction, 5)}
 
-B8 只有 {b8dir['nonincrease_fraction']*100:.2f}% 的相邻变化符合“Q 提高时 Loss 不升”，与题意和 B6/B7 相反，故未进入拟合，也未擅自反转 Q。
+B8 只有 {b8dir['nonincrease_fraction']*100:.2f}% 的相邻变化符合“Q 提高时 Loss 不升”，与题意和 B6/B7 相反，故未进入拟合，也未擅自反转 Q。B6/B8 相同 $(N,D,Q)$ 的 {len(overlap)} 个重叠点，$L_{{B8}}-L_{{B6}}$ 中位数为 {overlap['B8_minus_B6_loss'].median():+.4f}。可能存在 Q 定义或生成机制不同；目前没有生成脚本证据，不能据此判定冲突成因。
 
 ## 4. 边际效用和质量—参数等价量
 
 在参考配比处，解析边际量为：
 
 $$
-\frac{{\partial L}}{{\partial N}}=-\alpha A N^{{-\alpha-1}},\quad
-\frac{{\partial L}}{{\partial D}}=-\beta B D^{{-\beta-1}}e^{{\gamma_Q(1-Q)}},\quad
-\frac{{\partial L}}{{\partial Q}}=-\gamma_Q B D^{{-\beta}}e^{{\gamma_Q(1-Q)}}.
+\frac{{\partial L}}{{\partial N}}=-\alpha A N^{{-\alpha-1}}G,\quad
+\frac{{\partial L}}{{\partial D}}=-\beta B D^{{-\beta-1}}G,\quad
+\frac{{\partial L}}{{\partial Q_B}}=-\gamma_Q(X+Y)G,
 $$
 
-参数、数据弹性和质量半弹性已保存于 `marginal_elasticities.csv`。在 B6 支持网格内，Q 提升 0.1 的参数等价倍数中位数为 {eq_median:.3f}；每个网格点均给出轨迹/单元 Bootstrap 区间和有效抽样比例。该数值是固定 D、固定配比、采用 B6 原生 Q 标尺时的条件等价量，不能脱离基准 N、D、Q 使用。问题一 Q 与 B6 Q 无成对标定，因此不把该倍数用于第一问推荐配比。
+其中 $X=A N^{{-\alpha}}$、$Y=B D^{{-\beta}}$、$G=\exp[\gamma_Q(1-Q_B)]$。参数、数据弹性和质量半弹性已保存于 `marginal_elasticities.csv`。在 B6 支持网格内，$Q_B$ 提升 0.1 的参数等价倍数中位数为 {eq_median:.3f}；分布分位数为：
+
+{markdown_table(eq_quantiles, 5)}
+
+每个网格点给出同一重抽样编号配对的轨迹/单元 Bootstrap 区间和有效比例。exp_both 下该倍数不随初始 $Q_B$ 变化，但随 N、D 变化；仅是固定 D、固定配比的条件等价量。热力图中 D=600B 位于 B1 实测数据量上限 300B 之外，以虚线分隔，应视作外推。问题一 $Q_A$ 与 B6 $Q_B$ 无成对标定，不把该倍数用于第一问推荐配比。
 
 ## 5. M2 配比接口与领域替换
 
-问题一现有结果保存了 17 域在训练均值处的单域 +1 个百分点扰动，但没有保存二阶响应面的 Hessian 或 Bootstrap 系数抽样。因此本问从这些真实输出恢复一阶中心化梯度，形成可行的成对局部替换矩阵：
+问题一保存了 17 域在训练均值处的单域 +1 个百分点扰动。本问从这些结果恢复一阶中心化梯度，形成可行的成对局部替换矩阵：
 
 $$
 S_{{i\leftarrow j}}(0.01)\approx0.01(\tilde g_i-\tilde g_j).
@@ -944,15 +1087,25 @@ $$
 
 {markdown_table(best_sub[["increase_domain", "decrease_domain", "shift_share", "delta_macro_loss_linearized"]], 5)}
 
-这些是问题一训练均值附近的一阶模型预测，不是因果效应。当前证据不能估计曲率置信区间，因此不输出“显著互补”标签。配比项在 1M、60M、1B 的问题一结果中采用经验权重，超过 1B 时只能按中位衰减指数 {m2meta['effect_decay_kappa_median']:.4f} 做敏感性外推。
+这些是问题一训练均值附近的一阶模型预测，不是因果效应。另从第一问选中的二次 ILR 响应面导出了系数、ILR 坐标 Hessian 和 500 次按配方行重抽样的宏观 Loss 系数。`local_pair_nonadditivity.csv` 在训练均值、推荐质心两个锚点，对每个无序领域对各增加 0.5 个百分点、其余域按比例缩减，计算“同时改变”减去两个“单独改变”的差。每个锚点分别对 136 个无序对做基于 Bootstrap 标准差的近似 Wald 检验和 BH-FDR；训练均值锚点通过 {m2meta['local_pair_nonadditivity'].get('fdr_discoveries_training_mean', 0)} 对，推荐质心通过 {m2meta['local_pair_nonadditivity'].get('fdr_discoveries_recommended_centroid', 0)} 对。该结果只是指定扰动路径下的**模型非加性**，不能解释为领域间内在或因果互补，且检验依赖正态近似。配比项在 1M、60M、1B 的问题一结果中采用经验权重，超过 1B 时只能按中位衰减指数 {m2meta['effect_decay_kappa_median']:.4f} 做敏感性外推。
 
-以下是 **D-only 候选模型** 的条件计算式，用于质量—参数等价量和 IsoFLOP 敏感性分析；B6 插值 CV 选出的结构为 **{selected_model}**，故不能把该式表述为已验证的唯一完整模型：
+M2 的可识别接口采用所选 exp_both 质量项与问题一配比响应的条件相加：
 
 $$
-L(N,D,Q,p)=E+A N^{{-\alpha}}+B D^{{-\beta}}e^{{\gamma_Q(1-Q)}}+w_p(N)\Delta_p(p).
+L(N,D,Q_B,p)=E+e^{{\gamma_Q(1-Q_B)}}\left(A N^{{-\alpha}}+B D^{{-\beta}}\right)+w_p(N)\Delta_p(p).
 $$
 
-当 Q=1 且 $p=p^{{ref}}$ 时，质量修正因子为 1、配比差为 0，模型严格退化到 M0。规模、质量和配比模块分别验证，未构造跨来源总体拟合指标。领域替换矩阵仅是一阶近似；现有问题一输出缺少边级标准误，272 条有向边无法做 BH-FDR 检验，不能标注显著互补或替代。逐域 $\kappa_i$ 保存在 `domain_decay_weights.csv`，负值原样保留，并只在观测尺度内解释。
+当 $Q_B=1$ 且 $p=p^{{ref}}$ 时，条件式退化到 M0。该加性接口未获共同实验验证；$Q_A$ 不代入 $Q_B$。规模、质量和配比模块分别验证，未构造跨来源总体拟合指标。272 条有向一阶替换边没有独立的显著性含义；二阶近似检验只针对另行定义的 136 个无序模型内联合扰动。
+
+逐域 $\kappa_i$ 只覆盖问题一有 Loss 目标的 {len(decay_1b)} 个域，保存在 `domain_decay_weights.csv`。该表以 1M 为 $N_0$，故 1B 权重为 $(1000)^{{-\kappa_i}}$。以下负值域在 1B 权重反而放大，不应被概括为“所有配比效应衰减”：
+
+{markdown_table(negative_decay, 5)}
+
+第一问超过 1B 的敏感性外推另以 1B 为 $N_0$；两个参考点不能混用。由于 pile_cc 属于推荐配比的重要域，其负 $\kappa_i$ 尤其限制大尺度跨问推断。
+
+### 固定算力的 IsoFLOP 条件前沿
+
+`isoflop_frontier.csv` 和 `isoflop_frontier.pdf` 给出 B1 实测算力分桶的最小观测 Loss，以及在 B1 的 N、D 矩形支持域内、按 $C_{{10^{{21}}}}=0.006N_BD_B$ 约束优化的 **{selected_model}** 条件前沿。exp_both 的质量因子同时乘 N、D 两项，故固定 C 时最优 N、D 在模型内不随 $Q_B$ 改变；质量仅使预测 Loss 前沿移动。这是模型性质，不是独立实验发现。B1 分桶点使用实测 C 字段；模型曲线的 C 约束使用数据中核对过的换算式。
 
 ## 6. 第一问质量输出到第二问的可识别接口
 
@@ -989,9 +1142,12 @@ def main() -> None:
     external, _ = external_m0(m0, frames, b1)
     m1fits, cv, direction, gamma_boot = fit_m1_module(m0, frames["B6"], frames["B7"], frames["B8"], m0boot)
     b7sens = pd.read_csv(RESULTS / "m1_B7_sensitivity.csv")
-    exp_gamma = float(m1fits.set_index("model").loc["exp", "gamma"])
-    elasticity, equivalence = elasticity_and_equivalence(m0, exp_gamma, m0boot, gamma_boot, frames["B6"])
-    isoflop_frontier(m0, exp_gamma, b1)
+    selected_model = json.loads((RESULTS / "m1_model_selection.json").read_text(encoding="utf-8"))["selected_model"]
+    selected_gamma = float(m1fits.set_index("model").loc[selected_model, "gamma"])
+    selected_placement = "both" if selected_model == "exp_both" else "D"
+    elasticity, equivalence = elasticity_and_equivalence(
+        m0, selected_gamma, m0boot, gamma_boot, frames["B6"], selected_placement, selected_model)
+    isoflop_frontier(m0, selected_gamma, b1, selected_placement, selected_model)
     local, substitutions, m2meta = mixture_module()
     bridge = build_quality_bridge(P1, BROOT, RESULTS, FIGURES)
     manifest = make_figures(frames, m0, loo, profile, external, m1fits, cv, elasticity,

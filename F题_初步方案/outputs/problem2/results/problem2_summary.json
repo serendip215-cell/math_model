@@ -11,34 +11,40 @@
     "loo_spearman": 0.9999996310821824
   },
   "m1": {
-    "gamma": 0.5368836069542149,
-    "gamma_low": 0.4748770265912973,
-    "gamma_high": 0.6308984540967439,
-    "grouped_cv_improvement": 0.33497817428157894,
+    "model": "exp_both",
+    "gamma": 0.3649501815677944,
+    "gamma_low": 0.3476026151239826,
+    "gamma_high": 0.3867357112088623,
+    "grouped_cv_improvement": 0.5751046043502646,
     "cv_folds_better_than_baseline": 5,
-    "B7_new_Q_rmse": 0.067649462061697,
+    "B7_new_Q_rmse": 0.0445919170167856,
     "accepted": true
   },
   "B8_nonincrease_fraction": 0.15637065637065636,
-  "quality_plus_0_1_median_parameter_multiplier": 1.2191081226695006,
+  "quality_plus_0_1_median_parameter_multiplier": 1.245602035348237,
   "mixture": {
     "reference_mixture": "problem1 training mean",
     "substitution_type": "first-order local linearization from saved one-domain perturbations",
     "curvature_or_complementarity_identified": false,
-    "reason": "problem1 outputs do not serialize the fitted Hessian or bootstrap coefficient draws",
+    "local_model_curvature_identified": true,
+    "reason": "17x17 directed first-order swaps do not identify intrinsic complementarity; see separate local pair audit",
+    "local_pair_nonadditivity": {
+      "identified": true,
+      "pairs_per_anchor": 136,
+      "anchors": 2,
+      "bootstrap_replicates": 500,
+      "fdr_discoveries_training_mean": 30,
+      "fdr_discoveries_recommended_centroid": 38,
+      "interpretation": "local fitted nonadditivity under proportional redistribution; exploratory Wald/BH, not causal complementarity"
+    },
     "problem1_test_1m_macro_rmse": 0.23194974951806316,
     "effect_decay_kappa_median": 0.15025492404294674,
     "effect_decay_domain_specific": true,
-    "multiple_testing": "BH-FDR not computable from saved problem1 outputs; no edge labelled significant",
+    "multiple_testing": "136 unordered model-based pair contrasts per anchor are BH-adjusted separately; no causal label",
     "reference_anchors": [
       "training_mean",
       "recommended_centroid"
-    ],
-    "observed_scale_weights": {
-      "train_1m": 1.0,
-      "test_60m": 1.0,
-      "test_1B": 1.0
-    }
+    ]
   },
   "problem1_to_problem2_quality_bridge": {
     "mapped_domains": 6,
