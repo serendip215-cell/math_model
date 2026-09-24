@@ -1,0 +1,8 @@
+{
+  "selected_model": "exp_both",
+  "selection_metric": "5-fold grouped RMSE on D<=300B",
+  "Q_support": [
+    0.1,
+    1.0
+  ]
+}

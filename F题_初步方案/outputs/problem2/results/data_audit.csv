@@ -1,0 +1,13 @@
+﻿dataset,file,rows,columns,missing_cells,duplicate_rows,evidence_type,role
+B1,pythia_training_log_existing.csv,1176,15,0,0,附件训练日志,M0 主拟合；近乎确定性幂律，需警惕构造性
+B2,cerebras_training_log.csv,1029,12,0,0,半合成,模型族外压力测试
+B3,training_trajectories/*.csv,4000,5,0,0,插值,连续性检查，不作独立验证
+B4,scaling_baseline.csv,57,5,0,0,真实整理,跨族外部验证
+B5,published_scaling_data.csv,44,6,0,0,真实整理,文献外部验证
+B6,supplementary_NQ_experiment.csv,360,5,0,0,半合成,M1 主拟合
+B7,supplementary_NQ_experiment_expanded.csv,450,5,0,0,半合成,新增 Q 水平敏感性
+B8,supplementary_NQ_experiment_large.csv,1704,6,0,0,半合成/外推,方向冲突与远域压力测试
+B9,supplementary_large_models.csv,132,8,15,0,真实元数据,外推范围
+B10,supplementary_large_baseline.csv,128,5,0,0,估算,大模型风险边界
+B11,open_model_family_metadata.csv,18,7,0,0,辅助元数据,模型族索引
+B12,pythia_checkpoint_index.csv,1386,5,0,0,辅助索引,检查点索引

@@ -1,0 +1,44 @@
+{
+  "seed": 20260924,
+  "m0": {
+    "E": 1.6897975629242505,
+    "A": 0.35398032066708385,
+    "B": 1.2403055835421744,
+    "alpha": 0.33997658189509794,
+    "beta": 0.2798781285465312,
+    "loo_rmse": 0.0001511797787906,
+    "loo_mae": 0.0001078781700351,
+    "loo_spearman": 0.9999996310821824
+  },
+  "m1": {
+    "gamma": 0.5368836069542149,
+    "gamma_low": 0.4748770265912973,
+    "gamma_high": 0.6308984540967439,
+    "grouped_cv_improvement": 0.33497817428157894,
+    "cv_folds_better_than_baseline": 5,
+    "B7_new_Q_rmse": 0.067649462061697,
+    "accepted": true
+  },
+  "B8_nonincrease_fraction": 0.15637065637065636,
+  "quality_plus_0_1_median_parameter_multiplier": 1.2191081226695006,
+  "mixture": {
+    "reference_mixture": "problem1 training mean",
+    "substitution_type": "first-order local linearization from saved one-domain perturbations",
+    "curvature_or_complementarity_identified": false,
+    "reason": "problem1 outputs do not serialize the fitted Hessian or bootstrap coefficient draws",
+    "problem1_test_1m_macro_rmse": 0.23194974951806316,
+    "effect_decay_kappa_median": 0.15025492404294674,
+    "effect_decay_domain_specific": true,
+    "multiple_testing": "BH-FDR not computable from saved problem1 outputs; no edge labelled significant",
+    "reference_anchors": [
+      "training_mean",
+      "recommended_centroid"
+    ],
+    "observed_scale_weights": {
+      "train_1m": 1.0,
+      "test_60m": 1.0,
+      "test_1B": 1.0
+    }
+  },
+  "no_pooled_A_B_rmse_reported": true
+}

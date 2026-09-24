@@ -1,0 +1,5 @@
+﻿label,file,rows,expected_rows,status,note
+B1,pythia_training_log_existing.csv,1176,1176,PASS,真实 Pythia 日志；8 个参数规模，每组 147 点
+B3,training_trajectories/*.csv,4000,4000,PASS,8×500，所有文件 interpolated=1；只作连续性审计
+B4,scaling_baseline.csv,57,57,PASS,scaling_baseline.csv；跨族 Loss 数据
+B11,open_model_family_metadata.csv,18,18,PASS,open_model_family_metadata.csv；无 Loss，不作 B4

@@ -1,0 +1,2 @@
+﻿formula,rows,median_absolute_relative_error,p95_absolute_relative_error,within_5_percent_fraction,max_absolute_relative_error,max_error_cause
+C_FLOPs_1e21 = 0.006 * N_params_B * D_tokens_B,1176,2.6187327477918303e-05,0.0014137446801604449,0.9931972789115646,0.7631780989018786,最早期检查点的 C 仅保留四位小数，分母很小时相对误差被放大

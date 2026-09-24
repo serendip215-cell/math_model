@@ -1,0 +1,10 @@
+﻿figure,data_source,interpretation
+m0_scaling_fit.pdf,B1 附件训练日志,训练轨迹与 M0 拟合
+m0_loo_diagnostics.pdf,B1 按 N 留轨迹,M0 防泄漏验证
+m0_profile_likelihood.pdf,B1 附件训练日志,M0 参数可识别性
+m1_quality_curves.pdf,B6 半合成,质量曲线与 M1 拟合
+m1_cv_comparison.pdf,"B6 D≤300B 完整 (N,D) 单元分组",质量位置与函数竞争模型
+marginal_elasticities.pdf,M0+M1 解析计算,参数、数据和质量边际效用
+quality_parameter_equivalence.pdf,M0/M1 Bootstrap,质量提升与参数增加的条件等价量
+domain_substitution_matrix.pdf,问题一已保存的局部扰动,17 域一阶替换矩阵；不识别互补性
+external_and_quality_risk.pdf,B2/B4/B5/B10 与 B6/B7/B8,外部误差与质量方向风险
