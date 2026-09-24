@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import math
+import sys
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
@@ -23,6 +24,8 @@ import pandas as pd
 from scipy.optimize import least_squares
 from scipy.stats import spearmanr
 from sklearn.model_selection import GroupKFold
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from quality_bridge import build_quality_bridge
 
 
 SEED = 20260924
@@ -550,18 +553,6 @@ def fit_m1_module(m0fit: M0Fit, b6: pd.DataFrame, b7: pd.DataFrame, b8: pd.DataF
     return fit_df, cv_summary, sensitivity, boot_df
 
 
-def quality_scale_sensitivity(gamma: float) -> pd.DataFrame:
-    rows = []
-    for q_a in np.arange(0.4, 0.91, 0.1):
-        for bq in [0.5, 1.0, 1.5]:
-            q_b = float(np.clip(1.0 - bq * (1.0 - q_a), 0.0, 1.0))
-            rows.append({"Q_A": q_a, "b_Q": bq, "Q_B": q_b,
-                         "data_term_multiplier": float(np.exp(gamma * (1.0 - q_b)))})
-    result = pd.DataFrame(rows)
-    save_csv(result, "quality_scale_sensitivity.csv")
-    return result
-
-
 def elasticity_and_equivalence(m0: M0Fit, gamma: float, m0_boot: pd.DataFrame,
                                gamma_boot: pd.DataFrame, b6: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     rows = []
@@ -850,7 +841,8 @@ def make_figures(frames: dict[str, pd.DataFrame], m0: M0Fit, loo: pd.DataFrame, 
 def write_report(audit: pd.DataFrame, m0params: pd.DataFrame, m0metrics: pd.DataFrame,
                  external: pd.DataFrame, m1fits: pd.DataFrame, cv: pd.DataFrame,
                  direction: pd.DataFrame, b7sens: pd.DataFrame, equivalence: pd.DataFrame,
-                 local: pd.DataFrame, matrix: pd.DataFrame, m2meta: dict, manifest: pd.DataFrame) -> None:
+                 local: pd.DataFrame, matrix: pd.DataFrame, m2meta: dict, manifest: pd.DataFrame,
+                 bridge: dict) -> None:
     p = dict(zip(m0params["parameter"], m0params["estimate"]))
     ci = m0params.set_index("parameter")
     exp_row = m1fits.set_index("model").loc["exp"]
@@ -881,6 +873,7 @@ def write_report(audit: pd.DataFrame, m0params: pd.DataFrame, m0metrics: pd.Data
         "B8_nonincrease_fraction": float(b8dir["nonincrease_fraction"]),
         "quality_plus_0_1_median_parameter_multiplier": eq_median,
         "mixture": m2meta,
+        "problem1_to_problem2_quality_bridge": bridge,
         "no_pooled_A_B_rmse_reported": True,
     }
     (RESULTS / "problem2_summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -888,7 +881,7 @@ def write_report(audit: pd.DataFrame, m0params: pd.DataFrame, m0metrics: pd.Data
     audit_view = audit[["dataset", "rows", "evidence_type", "role"]]
     ext_view = external[["dataset", "n", "rmse", "centered_rmse", "spearman", "inside_B1_rectangle_fraction"]]
     param_view = m0params[["parameter", "estimate", "bootstrap_low", "bootstrap_high", "huber_sensitivity"]]
-    cv_view = cv[["model", "rmse_mean", "rmse_sd", "spearman_mean", "gamma_mean"]]
+    cv_view = cv[cv["model"].isin(["baseline", "exp_D", "exp_N", "exp_both", "power_D", "linear_D"])][["model", "rmse_mean", "rmse_sd", "spearman_mean", "gamma_mean"]]
     report = fr"""# 问题二计算结果：广义标度律
 
 ## 1. 证据和数据口径
@@ -937,7 +930,7 @@ $$
 \frac{{\partial L}}{{\partial Q}}=-\gamma_Q B D^{{-\beta}}e^{{\gamma_Q(1-Q)}}.
 $$
 
-参数、数据弹性和质量半弹性已保存于 `marginal_elasticities.csv`。在 B6 支持网格内，Q 提升 0.1 的参数等价倍数中位数为 {eq_median:.3f}；每个网格点均给出轨迹/单元 Bootstrap 区间和有效抽样比例。该数值是固定 D、固定配比、采用 B6 原生 Q 标尺时的条件等价量，不能脱离基准 N、D、Q 使用。问题一 Q 与 B6 Q 无成对标定，`quality_scale_sensitivity.csv` 另给出 $b_Q=0.5,1,1.5$ 的标尺敏感性。
+参数、数据弹性和质量半弹性已保存于 `marginal_elasticities.csv`。在 B6 支持网格内，Q 提升 0.1 的参数等价倍数中位数为 {eq_median:.3f}；每个网格点均给出轨迹/单元 Bootstrap 区间和有效抽样比例。该数值是固定 D、固定配比、采用 B6 原生 Q 标尺时的条件等价量，不能脱离基准 N、D、Q 使用。问题一 Q 与 B6 Q 无成对标定，因此不把该倍数用于第一问推荐配比。
 
 ## 5. M2 配比接口与领域替换
 
@@ -961,13 +954,21 @@ $$
 
 当 Q=1 且 $p=p^{{ref}}$ 时，质量修正因子为 1、配比差为 0，模型严格退化到 M0。规模、质量和配比模块分别验证，未构造跨来源总体拟合指标。领域替换矩阵仅是一阶近似；现有问题一输出缺少边级标准误，272 条有向边无法做 BH-FDR 检验，不能标注显著互补或替代。逐域 $\kappa_i$ 保存在 `domain_decay_weights.csv`，负值原样保留，并只在观测尺度内解释。
 
-## 6. 图表索引
+## 6. 第一问质量输出到第二问的可识别接口
+
+读取第一问的 17 域质量代理值和训练均值、推荐质心两组配比，按 $Q_A(p)=\sum_i p_i q_i$ 计算质量。17 域代理值中有 {bridge['mapped_domains']} 域由 A16 映射到已有质量域，其余 {bridge['unmapped_domains']} 域是由第一问训练 Loss 等信息推得的代理值，不是独立测量。训练均值的代理质量为 {bridge['q_a_training_mean_proxy']:.6f}，推荐质心为 {bridge['q_a_recommended_proxy']:.6f}，差值为 {bridge['delta_q_a_proxy']:+.6f}。
+
+若仅接受 A16 已映射域、并允许未映射域的真实质量各自在 $[0,1]$，推荐质心相对训练均值的质量变化落在 [{bridge['delta_q_a_bound'][0]:+.6f}, {bridge['delta_q_a_bound'][1]:+.6f}]。区间跨过零，因此现有资料连变化方向也不能无条件识别；该区间还依赖 A16 映射的语义可比性，不能当作统计置信区间。
+
+B6 没有 17 域配比，第一问配比试验没有 B6 的 Q 标尺与共同 Loss 协议，也没有成对实验 ID。故 $Q_A\to Q_B$ 的校准函数和 $L(N,D,Q,p)$ 的联合误差均**不可识别**。代码接口在缺少经实测标定的映射时会拒绝把 $Q_A$ 代入 B6 模型。领域级审计、配比质量与界、联合数据合同分别见 `quality_bridge_domain_audit.csv`、`quality_bridge_recipe_anchors.csv`、`quality_bridge_delta_bounds.csv` 和 `quality_bridge_joint_data_audit.csv`。
+
+## 7. 图表索引
 
 {markdown_table(manifest, 5)}
 
 所有图均由本次结果表直接生成，PDF 中不写论文式大标题。真实观测、半合成、插值和估算数据的解释边界见图表清单与数据审计表。
 
-## 7. 可复现运行
+## 8. 可复现运行
 
 ```powershell
 python F题_初步方案/code/problem2/problem2.py
@@ -989,15 +990,19 @@ def main() -> None:
     m1fits, cv, direction, gamma_boot = fit_m1_module(m0, frames["B6"], frames["B7"], frames["B8"], m0boot)
     b7sens = pd.read_csv(RESULTS / "m1_B7_sensitivity.csv")
     exp_gamma = float(m1fits.set_index("model").loc["exp", "gamma"])
-    quality_scale_sensitivity(exp_gamma)
     elasticity, equivalence = elasticity_and_equivalence(m0, exp_gamma, m0boot, gamma_boot, frames["B6"])
     isoflop_frontier(m0, exp_gamma, b1)
     local, substitutions, m2meta = mixture_module()
+    bridge = build_quality_bridge(P1, BROOT, RESULTS, FIGURES)
     manifest = make_figures(frames, m0, loo, profile, external, m1fits, cv, elasticity,
                             equivalence, substitutions, direction)
+    manifest = pd.concat([manifest, pd.DataFrame([{"figure": "quality_bridge_identification.pdf",
+        "data_source": "问题一 17 域质量、A16 映射与两组配比",
+        "interpretation": "质量变化的代理值与部分识别界；不是 B6 标尺校准"}])], ignore_index=True)
+    save_csv(manifest, "figure_manifest.csv")
     m0metrics = pd.read_csv(RESULTS / "m0_validation_metrics.csv")
     write_report(audit, m0params, m0metrics, external, m1fits, cv, direction, b7sens,
-                 equivalence, local, substitutions, m2meta, manifest)
+                 equivalence, local, substitutions, m2meta, manifest, bridge)
     summary = json.loads((RESULTS / "problem2_summary.json").read_text(encoding="utf-8"))
     print(json.dumps(summary, ensure_ascii=False, indent=2))
 

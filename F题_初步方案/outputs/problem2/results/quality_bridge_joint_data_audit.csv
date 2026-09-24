@@ -1,0 +1,5 @@
+﻿source,has_17_domain_recipe,has_loss,has_Q_B,has_N_D_grid,has_common_AB_experiment_id
+A_mixture_1m,True,False,False,False,False
+A_pile_loss_1m,False,True,False,False,False
+B1_Pythia,False,True,False,True,False
+B6_NDQ,False,True,True,True,False

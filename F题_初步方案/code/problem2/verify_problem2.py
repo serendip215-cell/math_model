@@ -2,10 +2,13 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from quality_bridge import predict_with_problem1_quality
 
 
 PROJECT = Path(__file__).resolve().parents[2]
@@ -94,6 +97,32 @@ def main() -> None:
     add(checks, "跨来源指标纪律", summary.get("no_pooled_A_B_rmse_reported") is True,
         "未报告 A/B 拼接后的总体 RMSE")
 
+    p1 = PROJECT / "outputs" / "problem1"
+    recipe = pd.read_csv(p1 / "mixture" / "results" / "recommended_mixture.csv").set_index("domain")
+    q_proxy = pd.read_csv(p1 / "inferred_quality" / "inferred_quality_proxy.csv").set_index("domain")
+    stored_bridge = json.loads((RESULTS / "quality_bridge_summary.json").read_text(encoding="utf-8"))
+    recalculated_delta = float(((recipe["recommended_share"] - recipe["training_mean_share"])
+                                * q_proxy["q_combined"]).sum())
+    add(checks, "第一问质量配比回代", abs(recalculated_delta - stored_bridge["delta_q_a_proxy"]) < 1e-12,
+        f"17 域重新计算 ΔQ_A={recalculated_delta:+.8f}")
+    bounds = pd.read_csv(RESULTS / "quality_bridge_delta_bounds.csv").iloc[0]
+    lower = float(bounds["delta_q_a_lower_given_A16_mappings"])
+    upper = float(bounds["delta_q_a_upper_given_A16_mappings"])
+    add(checks, "质量变化部分识别", lower <= recalculated_delta <= upper and lower < 0 < upper,
+        f"代理值在 [{lower:+.6f}, {upper:+.6f}] 内；区间跨零")
+    rejected = False
+    try:
+        predict_with_problem1_quality(float(q_proxy["q_combined"].mean()))
+    except ValueError:
+        rejected = True
+    add(checks, "缺少标定时拒绝跨标尺预测", rejected and not stored_bridge["q_a_to_q_b_calibration_identified"],
+        "无成对 Q 标定时接口拒绝将 Q_A 当成 Q_B")
+    joint = pd.read_csv(RESULTS / "quality_bridge_joint_data_audit.csv")
+    has_joint = bool(((joint["has_17_domain_recipe"] == True) & (joint["has_Q_B"] == True) &
+                      (joint["has_loss"] == True) & (joint["has_N_D_grid"] == True)).any())
+    add(checks, "A/B 联合验证可识别性", not has_joint and not stored_bridge["joint_A_B_loss_validation_possible"],
+        "当前没有同时含 N、D、Q_B、17 域配比及 Loss 的观测")
+
     check_df = pd.DataFrame(checks)
     check_df.to_csv(RESULTS / "verification_checks.csv", index=False, encoding="utf-8-sig")
     passed = bool(check_df["passed"].all())
@@ -119,6 +148,7 @@ def main() -> None:
 - M1 的质量证据来自半合成 B6，B7 只作新增质量水平敏感性。
 - B8 的质量方向冲突已复算，因此没有参与拟合。
 - 配比替换矩阵是问题一已保存边际效应的一阶恢复；缺少 Hessian 与 Bootstrap 系数时不检验互补性。
+- 第一问 17 域质量代理值已用于配比质量审计；A/B 质量标尺和联合 Loss 没有成对实验标定，因此不报告联合精度。
 - B10 Loss 为估算值，只作外推风险边界。
 """
     REPORT.write_text(report, encoding="utf-8")

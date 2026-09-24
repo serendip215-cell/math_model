@@ -1,0 +1,16 @@
+{
+  "mapped_domains": 6,
+  "unmapped_domains": 11,
+  "q_a_training_mean_proxy": 0.6319991979436377,
+  "q_a_recommended_proxy": 0.6289475710314811,
+  "delta_q_a_proxy": -0.0030516269121564662,
+  "delta_q_a_bound": [
+    -0.0574921125899984,
+    0.03622350964976039
+  ],
+  "direction_identified": false,
+  "q_a_to_q_b_calibration_identified": false,
+  "joint_A_B_loss_validation_possible": false,
+  "reason": "B6 lacks 17-domain recipe; A recipe/loss data lack B6 Q and common training-loss protocol",
+  "proxy_caution": "11 inferred domain scores are informed by A training Loss; not independent quality measurements"
+}
