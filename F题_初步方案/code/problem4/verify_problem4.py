@@ -66,6 +66,20 @@ def main() -> None:
           pd.to_numeric(usable["Training compute (FLOP)"], errors="coerce").gt(0).all())
     check("Compute subset only strict pretrained", usable.strict_open.all() and
           usable.type_group.eq("pretrained").all())
+    review = read("c4_manual_review_queue.csv")
+    check("Manual review queue matches compute subset", len(review) == len(usable) and
+          set(review.Model_C1) == set(usable.Model_C1) and review.Model_C4.is_unique)
+    check("Manual review not falsely marked complete", review.manual_review_status.eq(
+          "pending_external_source_check").all() and review.repository_revision_evidence.isna().all())
+    raw_c4 = pd.read_csv(DATA / "epoch_all_ai_models.csv", low_memory=False)
+    original = review.merge(raw_c4[["Model", "Link", "Training compute notes"]],
+                            left_on="Model_C4", right_on="Model", suffixes=("_saved", "_raw"))
+    normalized_raw_link = original.Link_raw.astype("string").str.replace(
+        r"[ \t]+(?=\r?\n|$)", "", regex=True)
+    check("Manual review source fields copied from C4", len(original) == len(review) and
+          original.Link_saved.fillna("").eq(normalized_raw_link.fillna("")).all() and
+          original["Training compute notes_saved"].fillna("").eq(
+              original["Training compute notes_raw"].fillna("")).all())
 
     holdout = read("future_holdout_predictions.csv")
     metrics = read("model_holdout_metrics.csv")
@@ -99,6 +113,42 @@ def main() -> None:
     check("Temporal model comparison agrees with saved holdout errors", all(comparison_ok))
     check("Temporal comparison bootstrap bounds valid", temporal.family_bootstrap_ci_low.le(
           temporal.family_bootstrap_ci_high).all())
+    rolling = read("rolling_month_support_audit.csv")
+    rolling_metrics = read("rolling_month_metrics.csv")
+    rolling_predictions = read("rolling_month_predictions.csv")
+    screen_ok = (rolling.descriptive_screen_pass.le(rolling.fit_possible).all() and
+                 rolling.loc[rolling.descriptive_screen_pass, "test_models"].ge(10).all() and
+                 rolling.loc[rolling.descriptive_screen_pass, "test_families"].ge(3).all() and
+                 rolling.loc[rolling.descriptive_screen_pass,
+                             "test_logN_within_train_minmax_fraction"].ge(.8).all() and
+                 rolling.loc[rolling.descriptive_screen_pass, "full_calendar_month"].all())
+    check("Rolling descriptive screen rules independently checked", screen_ok)
+    month_count_ok = []
+    for item in rolling.itertuples():
+        group = "pretrained" if item.stratum == "strict_pretrained" else "posttrained"
+        source = panel[panel.strict_open & panel.type_group.eq(group)]
+        date = pd.to_datetime(source.submission)
+        observed_train = source[date.le(item.train_end)]
+        observed_test = source[date.gt(item.train_end) & date.le(item.test_end)]
+        month_count_ok.append(len(observed_train) == item.train_models and
+                              len(observed_test) == item.test_models and
+                              observed_test.family.nunique() == item.test_families)
+    check("Rolling train and test counts recomputed from panel", all(month_count_ok))
+    rolling_error_ok = []
+    for item in rolling_metrics.itertuples():
+        rows = rolling_predictions[(rolling_predictions.stratum == item.stratum) &
+            (rolling_predictions.target_month == item.target_month) &
+            (rolling_predictions.variant == item.variant)]
+        squared = (rows.predicted - rows.observed) ** 2
+        family_mse = rows.assign(squared=squared).groupby("family").squared.mean()
+        rolling_error_ok.append(len(rows) == item.test_models and
+            np.isclose(np.sqrt(squared.mean()), item.rmse) and
+            np.isclose(np.sqrt(family_mse.mean()), item.family_balanced_rmse))
+    check("Rolling errors independently recomputed", all(rolling_error_ok))
+    influence = read("family_influence_review_queue.csv")
+    check("Family review queue is ranked and pending", influence.absolute_influence_points.is_monotonic_decreasing
+          and influence.base_family_identity_review.eq("pending_source_evidence").all()
+          and influence.family_heuristic.is_unique)
 
     compute = read("linked_compute_sensitivity.csv")
     check("Compute association bootstrap intervals valid", compute.families.ge(2).all() and

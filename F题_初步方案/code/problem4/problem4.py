@@ -162,7 +162,10 @@ def link_c4(panel: pd.DataFrame, c4: pd.DataFrame) -> tuple[pd.DataFrame, pd.Dat
     counts = right.match_key.value_counts()
     right = right[["match_key", "Model", "Parameters", "Training compute (FLOP)",
                    "Training dataset size (total)", "Publication date", "Confidence",
-                   "Domain", "Open model weights?", "Hugging Face developer id"]]
+                   "Domain", "Open model weights?", "Hugging Face developer id",
+                   "Organization", "Reference", "Link", "Parameters notes",
+                   "Training compute notes", "Training compute estimation method",
+                   "Base model", "Foundation model"]]
     merged = left.merge(right, on="match_key", how="inner", suffixes=("_C1", "_C4"))
     merged["C4_key_unique"] = merged.match_key.map(counts).eq(1)
     merged["C1_key_unique"] = merged.match_key.map(left_key_counts).eq(1)
@@ -200,6 +203,23 @@ def link_c4(panel: pd.DataFrame, c4: pd.DataFrame) -> tuple[pd.DataFrame, pd.Dat
     save(merged[audit_cols], "c1_c4_link_audit.csv")
     use = merged[merged.usable_compute].copy()
     save(use[audit_cols], "c4_compute_linked_subset.csv")
+    review_cols = ["Model_C1", "Model_C4", "Organization", "Hugging Face developer id",
+                   "N_B", "Parameters", "Parameters notes", "N_ratio", "submission",
+                   "Publication date", "Training compute (FLOP)", "Training compute notes",
+                   "Training compute estimation method", "Base model", "Foundation model",
+                   "Confidence", "Open model weights?", "Reference", "Link"]
+    review = use[review_cols].copy()
+    review["Link"] = review["Link"].astype("string").str.replace(
+        r"[ \t]+(?=\r?\n|$)", "", regex=True)
+    review["automated_rule_status"] = "passed"
+    review["manual_review_status"] = "pending_external_source_check"
+    for col in ["repository_revision_evidence", "version_identity_review",
+                "training_stage_review", "compute_source_review",
+                "historical_open_status_review", "reviewer_notes"]:
+        review[col] = pd.NA
+    review["owner_id_missing"] = use["Hugging Face developer id"].isna().to_numpy()
+    review = review.sort_values(["owner_id_missing", "Model_C1"], ascending=[False, True])
+    save(review, "c4_manual_review_queue.csv")
     standalone = c4.copy()
     standalone["publication"] = pd.to_datetime(standalone["Publication date"], errors="coerce")
     standalone["compute"] = pd.to_numeric(standalone["Training compute (FLOP)"], errors="coerce")
@@ -430,6 +450,100 @@ def temporal_model_comparison() -> pd.DataFrame:
     return save(pd.DataFrame(rows), "temporal_model_comparison.csv")
 
 
+def rolling_month_validation(panel: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    audits = []; metrics = []; predictions = []
+    for stratum, group in [("strict_pretrained", "pretrained"),
+                           ("strict_posttrained", "posttrained")]:
+        sub = panel[panel.strict_open & panel.type_group.eq(group)].copy()
+        dates = pd.to_datetime(sub.submission)
+        for target in pd.period_range("2024-07", "2025-03", freq="M"):
+            test_start = target.to_timestamp()
+            test_end = min((target + 1).to_timestamp() - pd.Timedelta(days=1), CUTOFF)
+            train = sub[dates.lt(test_start)].copy()
+            test = sub[dates.between(test_start, test_end)].copy()
+            full_month = test_end == (target + 1).to_timestamp() - pd.Timedelta(days=1)
+            support = (float(test.logN.between(train.logN.min(), train.logN.max()).mean())
+                       if len(train) and len(test) else np.nan)
+            can_fit = len(train) >= 12 and train.family.nunique() >= 3 and len(test) >= 3
+            # Descriptive screen, not a proof of statistical power or future validity.
+            screen = (can_fit and full_month and len(test) >= 10 and
+                      test.family.nunique() >= 3 and support >= .8)
+            audit = {"stratum": stratum, "target_month": str(target),
+                     "train_end": str((test_start - pd.Timedelta(days=1)).date()),
+                     "test_end": str(test_end.date()), "full_calendar_month": full_month,
+                     "train_models": len(train), "train_families": train.family.nunique(),
+                     "test_models": len(test), "test_families": test.family.nunique(),
+                     "unseen_test_families": int((~test.family.isin(train.family)).groupby(
+                         test.family).first().sum()) if len(test) else 0,
+                     "test_logN_within_train_minmax_fraction": support,
+                     "fit_possible": can_fit, "descriptive_screen_pass": screen}
+            audits.append(audit)
+            if not can_fit: continue
+            for variant, use_time in [("N_only", False), ("N_plus_time", True)]:
+                alpha, _ = choose_alpha(train, use_time)
+                pred = score_predict(score_fit(train, use_time, alpha), test)
+                squared = (pred - test.Y.to_numpy()) ** 2
+                fam_mse = pd.DataFrame({"family": test.family.to_numpy(),
+                                        "squared": squared}).groupby("family").squared.mean()
+                metrics.append({"stratum": stratum, "target_month": str(target),
+                                "variant": variant, "alpha": alpha,
+                                "test_models": len(test), "test_families": test.family.nunique(),
+                                "descriptive_screen_pass": screen,
+                                "rmse": float(np.sqrt(np.mean(squared))),
+                                "family_balanced_rmse": float(np.sqrt(fam_mse.mean())),
+                                "bias": float(np.mean(pred - test.Y))})
+                predictions.extend({"stratum": stratum, "target_month": str(target),
+                                    "variant": variant, "Model": model, "family": family_name,
+                                    "observed": float(obs), "predicted": float(yhat)}
+                                   for model, family_name, obs, yhat in zip(
+                                       test.Model, test.family, test.Y, pred))
+            baseline = np.repeat(float(train.Y.mean()), len(test))
+            squared = (baseline - test.Y.to_numpy()) ** 2
+            fam_mse = pd.DataFrame({"family": test.family.to_numpy(),
+                                    "squared": squared}).groupby("family").squared.mean()
+            metrics.append({"stratum": stratum, "target_month": str(target),
+                            "variant": "training_mean", "alpha": np.nan,
+                            "test_models": len(test), "test_families": test.family.nunique(),
+                            "descriptive_screen_pass": screen,
+                            "rmse": float(np.sqrt(np.mean(squared))),
+                            "family_balanced_rmse": float(np.sqrt(fam_mse.mean())),
+                            "bias": float(np.mean(baseline - test.Y))})
+            predictions.extend({"stratum": stratum, "target_month": str(target),
+                                "variant": "training_mean", "Model": model,
+                                "family": family_name, "observed": float(obs),
+                                "predicted": float(yhat)} for model, family_name, obs, yhat in zip(
+                                    test.Model, test.family, test.Y, baseline))
+    audit = save(pd.DataFrame(audits), "rolling_month_support_audit.csv")
+    metric = save(pd.DataFrame(metrics), "rolling_month_metrics.csv")
+    prediction = save(pd.DataFrame(predictions), "rolling_month_predictions.csv")
+    return audit, metric, prediction
+
+
+def family_influence_audit() -> pd.DataFrame:
+    holdout = pd.read_csv(RESULTS / "future_holdout_predictions.csv")
+    sub = holdout[holdout.stratum.eq("strict_posttrained") &
+                  holdout.variant.isin(["N_only", "N_plus_time"])].copy()
+    sub["squared"] = (sub.predicted - sub.observed) ** 2
+    family_mse = sub.groupby(["family", "variant"]).squared.mean().unstack().dropna()
+    full_delta = float(np.sqrt(family_mse.N_plus_time.mean()) -
+                       np.sqrt(family_mse.N_only.mean()))
+    rows = []
+    for family_name in family_mse.index:
+        other = family_mse.drop(family_name)
+        if len(other) < 2: continue
+        without_delta = float(np.sqrt(other.N_plus_time.mean()) -
+                              np.sqrt(other.N_only.mean()))
+        example = sub[sub.family.eq(family_name)].Model.iloc[0]
+        rows.append({"family_heuristic": family_name,
+                     "holdout_models": sub[sub.family.eq(family_name)].Model.nunique(),
+                     "example_model": example, "full_delta_rmse": full_delta,
+                     "delta_without_family": without_delta,
+                     "absolute_influence_points": abs(full_delta - without_delta),
+                     "base_family_identity_review": "pending_source_evidence"})
+    return save(pd.DataFrame(rows).sort_values("absolute_influence_points", ascending=False),
+                "family_influence_review_queue.csv")
+
+
 def decompose(panel: pd.DataFrame, fits: dict) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     audits = []; pieces = []; boots = []; local_rows = []
     boot_rng = np.random.default_rng(20260925)
@@ -619,7 +733,8 @@ def task_model_validation(panel: pd.DataFrame) -> pd.DataFrame:
 
 def draw_figures(panel: pd.DataFrame, flow: pd.DataFrame, monthly: pd.DataFrame,
                  decomposition: pd.DataFrame, bridge_loo: pd.DataFrame,
-                 c8_joined: pd.DataFrame, scenarios: pd.DataFrame) -> None:
+                 c8_joined: pd.DataFrame, scenarios: pd.DataFrame,
+                 rolling_metrics: pd.DataFrame) -> None:
     plt.rcParams.update({"font.size": 9, "figure.dpi": 140, "savefig.bbox": "tight"})
     fig, ax = plt.subplots(figsize=(8, 3.5))
     part = flow.iloc[[0, 1, 2, 3, 4]]
@@ -688,6 +803,20 @@ def draw_figures(panel: pd.DataFrame, flow: pd.DataFrame, monthly: pd.DataFrame,
                title="Different metric scales; do not assert equality")
         save_figure(fig, "q4_c8_c1_scale_audit.pdf")
 
+    short = rolling_metrics[rolling_metrics.descriptive_screen_pass &
+                            rolling_metrics.stratum.eq("strict_posttrained")]
+    if len(short):
+        fig, ax = plt.subplots(figsize=(7, 3.7))
+        for variant, marker in [("N_only", "o"), ("N_plus_time", "s"),
+                                ("training_mean", "^")]:
+            part = short[short.variant.eq(variant)].sort_values("target_month")
+            ax.scatter(part.target_month, part.family_balanced_rmse,
+                       marker=marker, s=55, label=variant)
+        ax.set(xlabel="Complete next-month holdout", ylabel="Family-balanced RMSE (points)",
+               title="Supported short-horizon folds only; no long-horizon inference")
+        ax.legend(fontsize=8)
+        save_figure(fig, "q4_short_horizon_rolling_validation.pdf")
+
     # No long-horizon curve when growth and time extrapolation are unidentified.
 
 
@@ -698,7 +827,9 @@ def write_report(flow: pd.DataFrame, links: pd.DataFrame, usable: pd.DataFrame,
                  compute: pd.DataFrame, scenarios: pd.DataFrame,
                  tasks: pd.DataFrame, task_models: pd.DataFrame,
                  temporal_comparison: pd.DataFrame,
-                 publication_audit: pd.DataFrame) -> None:
+                 publication_audit: pd.DataFrame, manual_review: pd.DataFrame,
+                 rolling_audit: pd.DataFrame, rolling_metrics: pd.DataFrame,
+                 family_influence: pd.DataFrame) -> None:
     metric_cols = ["stratum", "variant", "n", "families", "train_n",
                    "future_holdout_n", "future_holdout_families", "future_holdout_rmse",
                    "future_holdout_family_balanced_rmse", "future_holdout_bias", "status"]
@@ -706,6 +837,12 @@ def write_report(flow: pd.DataFrame, links: pd.DataFrame, usable: pd.DataFrame,
     scenario_view = scenarios.reindex(columns=["horizon_months", "monthly_q90_log10N_trend",
         "positive_growth_established", "time_model_improves_future_holdout",
         "same_horizon_backtest_available", "predicted_conditional_score", "status"])
+    screened = rolling_metrics.loc[rolling_metrics.descriptive_screen_pass &
+                                   rolling_metrics.stratum.eq("strict_posttrained")]
+    comparison = screened.pivot(index="target_month", columns="variant",
+                                values="family_balanced_rmse")
+    better = int((comparison.N_plus_time < comparison.N_only).sum()) if len(comparison) else 0
+    worse = int((comparison.N_plus_time > comparison.N_only).sum()) if len(comparison) else 0
     lines = ["# 问题四结果：开放模型能力变化与条件情景", "",
              "> 计算日期基于附件快照。预测原点是同协议 C1 的 2025-03-13，12/24 个月情景没有同长度回测，不能解读为当前实测前沿或可信外推预测。",
              "", "## 数据与三个硬边界", "",
@@ -718,13 +855,28 @@ def write_report(flow: pd.DataFrame, links: pd.DataFrame, usable: pd.DataFrame,
              "Epoch 元数据发布日期可能对应匹配的基础模型，不能直接等同于衍生模型发布时间；晚于提交日的日期更不能视为历史可得信息。下表仅审计两日期差异，主模型的时间变量仍是排行榜提交日。",
              "", tbl(publication_audit), "",
              f"C1/C4 名称候选 {len(links)} 行，规则接受 {int(links.accepted_link.sum())} 行，严格开放预训练且算力可用 {len(usable)} 行。候选和接受均不等于人工逐项核验。",
+             f"这 {len(manual_review)} 条算力连接的原始来源、参数与算力备注已汇成 `c4_manual_review_queue.csv`；人工复核状态全部为待核，开发者 ID 缺失 {int(manual_review.owner_id_missing.sum())} 条。当前算力相关仍是规则连接子样本的探索性分析。",
              "", "### C8 逐任务核算", "",
              f"扫描 {c8['json_files']} 个 JSON；解析 {c8['parsed']} 个；模型去重后 {c8['models_latest']} 个；与 C1 连接 {c8['joined_to_C1']} 个，其中同一叶任务集合 {c8['common_task_set_joined']} 个。C8 叶任务宏平均与 C1 BBH **数值标尺未证实相同**，因此只做覆盖与秩序审计，不强行回代相等。重复版本以记录时间及文件名排序取末份。",
              "", "## 规模、时间残差与验证", "",
              "模型将六任务均分映射到 logit 空间，拟合 log10 参数量与提交时间的 Ridge；超参数在训练期按模型家族 GroupKFold，并以家族均衡 RMSE 选择。2025-01 至 03 月留作时间留出，比较仅规模、规模加时间与训练均值。除按记录计算 RMSE，还按家族等权平均各家族均方误差后开方，避免提交数多的家族支配验证。时间系数吸收未观测架构、数据、后训练和选择变化，不能解释为纯技术进步。",
              "", tbl(metrics_view), "",
              "两模型在相同留出家族上的家族均衡 RMSE 差（含时间减仅规模）如下；重抽样单位为家族，区间不能验证 12/24 个月外推。",
-             "", tbl(temporal_comparison), "", "### 共同规模支持", "", tbl(support), ""]
+             "", tbl(temporal_comparison), "",
+             "### 逐月短期留出", "",
+             "每折只使用目标月份开始前的模型训练，并预测下一日历月。下表同时给出训练/测试家族数、未见过的测试家族及测试参数量落在训练极值内的比例。描述性筛选预设为完整月份、测试至少 10 条且 3 个家族、参数量极值覆盖率至少 80%；这不是统计功效证明，未通过的折也保留审计。",
+             "", tbl(rolling_audit[["stratum", "target_month", "train_models", "train_families",
+                                    "test_models", "test_families", "unseen_test_families",
+                                    "test_logN_within_train_minmax_fraction", "full_calendar_month",
+                                    "descriptive_screen_pass"]]), "",
+             "通过描述性筛选的短期折如下；逐模型预测及所有可拟合折的误差保存在结果表。多个月份仍共享训练数据与家族，不能把这些折当独立重复实验，更不能充当 12/24 个月回测。",
+             "", tbl(rolling_metrics.loc[rolling_metrics.descriptive_screen_pass,
+                      ["stratum", "target_month", "variant", "test_models", "test_families",
+                       "family_balanced_rmse", "bias"]]), "",
+             f"严格后训练通过筛选 {len(comparison)} 折，其中含时间模型家族均衡 RMSE 较低 {better} 折、较高 {worse} 折；严格预训练通过筛选 {int(rolling_audit.loc[rolling_audit.stratum.eq('strict_pretrained'), 'descriptive_screen_pass'].sum())} 折。只报告这种异质性，不据此估计长期趋势。",
+             "### 家族划分优先复核队列", "",
+             "删除一个留出家族后，时间模型与仅规模模型的家族均衡误差差值会变化。按变化绝对值排序，仅用于确定应先核对哪些基础模型关系；现有家族标签仍是名称启发式，未凭猜测新增归属。",
+             "", tbl(family_influence), "", "### 共同规模支持", "", tbl(support), ""]
     if len(decomp):
         lines += ["只有支持审计通过的层才执行早期（截至 2024-08）与晚期（2025-01 至 03）两因素 Shapley 分解。分解数值是模型拟合变化，与实测变化另列；家族聚簇重抽样输出在 `decomposition_family_bootstrap.csv`。未通过者不报贡献百分比。",
                   "", tbl(decomp), ""]
@@ -764,17 +916,22 @@ def main() -> None:
     bridge_loo, bridge_info = bridge(data["C6"])
     fits, metrics = fit_leaderboard(panel)
     temporal_comparison = temporal_model_comparison()
+    rolling_audit, rolling_metrics, _ = rolling_month_validation(panel)
+    family_influence = family_influence_audit()
     support, decomp, overlap_sensitivity = decompose(panel, fits)
     monthly = monthly_frontier(panel)
     compute = compute_sensitivity(usable)
     scenarios = conditional_scenarios(panel, fits, metrics, monthly)
     tasks = task_sensitivity(panel)
     task_models = task_model_validation(panel)
-    draw_figures(panel, flow, monthly, decomp, bridge_loo, c8_joined, scenarios)
+    draw_figures(panel, flow, monthly, decomp, bridge_loo, c8_joined, scenarios,
+                 rolling_metrics)
     write_report(flow, links, usable, c8, bridge_info, metrics,
                  support, decomp, overlap_sensitivity, monthly, compute,
                  scenarios, tasks, task_models,
-                 temporal_comparison, publication_audit)
+                 temporal_comparison, publication_audit,
+                 pd.read_csv(RESULTS / "c4_manual_review_queue.csv"),
+                 rolling_audit, rolling_metrics, family_influence)
     print(json.dumps({"strict_pretrained": int((panel.strict_open &
           panel.type_group.eq("pretrained")).sum()), "strict_posttrained": int((panel.strict_open &
           panel.type_group.eq("posttrained")).sum()), "C4_usable_compute": len(usable),

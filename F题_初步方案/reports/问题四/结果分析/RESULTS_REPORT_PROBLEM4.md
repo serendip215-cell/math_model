@@ -38,6 +38,7 @@ Epoch 元数据发布日期可能对应匹配的基础模型，不能直接等�
 | pretrained | middle | 7 | 7 | 0 | 0 | 2 |
 
 C1/C4 名称候选 109 行，规则接受 88 行，严格开放预训练且算力可用 29 行。候选和接受均不等于人工逐项核验。
+这 29 条算力连接的原始来源、参数与算力备注已汇成 `c4_manual_review_queue.csv`；人工复核状态全部为待核，开发者 ID 缺失 12 条。当前算力相关仍是规则连接子样本的探索性分析。
 
 ### C8 逐任务核算
 
@@ -66,6 +67,59 @@ C1/C4 名称候选 109 行，规则接受 88 行，严格开放预训练且算�
 | license_only_pretrained | 7 | -0.031781 | -0.93782 | 1.0308 | descriptive_model_comparison_not_independent_long_horizon_test |
 | strict_posttrained | 6 | 3.7171 | -1.1127 | 7.535 | descriptive_model_comparison_not_independent_long_horizon_test |
 | strict_pretrained | 4 | -0.048415 | -0.61043 | 1.0737 | descriptive_model_comparison_not_independent_long_horizon_test |
+
+### 逐月短期留出
+
+每折只使用目标月份开始前的模型训练，并预测下一日历月。下表同时给出训练/测试家族数、未见过的测试家族及测试参数量落在训练极值内的比例。描述性筛选预设为完整月份、测试至少 10 条且 3 个家族、参数量极值覆盖率至少 80%；这不是统计功效证明，未通过的折也保留审计。
+
+| stratum | target_month | train_models | train_families | test_models | test_families | unseen_test_families | test_logN_within_train_minmax_fraction | full_calendar_month | descriptive_screen_pass |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| strict_pretrained | 2024-07 | 27 | 10 | 1 | 1 | 1 | 1 | True | False |
+| strict_pretrained | 2024-08 | 28 | 11 | 2 | 2 | 1 | 0.5 | True | False |
+| strict_pretrained | 2024-09 | 30 | 12 | 6 | 3 | 1 | 1 | True | False |
+| strict_pretrained | 2024-10 | 36 | 13 | 0 | 0 | 0 |  | True | False |
+| strict_pretrained | 2024-11 | 36 | 13 | 1 | 1 | 0 | 1 | True | False |
+| strict_pretrained | 2024-12 | 37 | 13 | 0 | 0 | 0 |  | True | False |
+| strict_pretrained | 2025-01 | 37 | 13 | 3 | 2 | 0 | 1 | True | False |
+| strict_pretrained | 2025-02 | 40 | 13 | 1 | 1 | 0 | 1 | True | False |
+| strict_pretrained | 2025-03 | 41 | 13 | 1 | 1 | 0 | 1 | False | False |
+| strict_posttrained | 2024-07 | 16 | 9 | 8 | 6 | 1 | 1 | True | False |
+| strict_posttrained | 2024-08 | 24 | 10 | 9 | 5 | 1 | 0.55556 | True | False |
+| strict_posttrained | 2024-09 | 33 | 11 | 17 | 6 | 1 | 1 | True | True |
+| strict_posttrained | 2024-10 | 50 | 12 | 6 | 3 | 2 | 1 | True | False |
+| strict_posttrained | 2024-11 | 56 | 14 | 11 | 2 | 0 | 1 | True | False |
+| strict_posttrained | 2024-12 | 67 | 14 | 7 | 1 | 0 | 1 | True | False |
+| strict_posttrained | 2025-01 | 74 | 14 | 41 | 5 | 2 | 0.97561 | True | True |
+| strict_posttrained | 2025-02 | 115 | 16 | 13 | 4 | 1 | 1 | True | True |
+| strict_posttrained | 2025-03 | 128 | 17 | 13 | 2 | 0 | 1 | False | False |
+
+通过描述性筛选的短期折如下；逐模型预测及所有可拟合折的误差保存在结果表。多个月份仍共享训练数据与家族，不能把这些折当独立重复实验，更不能充当 12/24 个月回测。
+
+| stratum | target_month | variant | test_models | test_families | family_balanced_rmse | bias |
+| --- | --- | --- | --- | --- | --- | --- |
+| strict_posttrained | 2024-09 | N_only | 17 | 6 | 9.0781 | -6.6569 |
+| strict_posttrained | 2024-09 | N_plus_time | 17 | 6 | 8.9205 | -4.9081 |
+| strict_posttrained | 2024-09 | training_mean | 17 | 6 | 10.963 | -3.4233 |
+| strict_posttrained | 2025-01 | N_only | 41 | 5 | 9.0332 | -5.4599 |
+| strict_posttrained | 2025-01 | N_plus_time | 41 | 5 | 11.792 | 2.9279 |
+| strict_posttrained | 2025-01 | training_mean | 41 | 5 | 8.7255 | -1.2511 |
+| strict_posttrained | 2025-02 | N_only | 13 | 4 | 8.2249 | -3.2869 |
+| strict_posttrained | 2025-02 | N_plus_time | 13 | 4 | 8.618 | 2.4303 |
+| strict_posttrained | 2025-02 | training_mean | 13 | 4 | 9.6658 | -1.2699 |
+
+严格后训练通过筛选 3 折，其中含时间模型家族均衡 RMSE 较低 1 折、较高 2 折；严格预训练通过筛选 0 折。只报告这种异质性，不据此估计长期趋势。
+### 家族划分优先复核队列
+
+删除一个留出家族后，时间模型与仅规模模型的家族均衡误差差值会变化。按变化绝对值排序，仅用于确定应先核对哪些基础模型关系；现有家族标签仍是名称启发式，未凭猜测新增归属。
+
+| family_heuristic | holdout_models | example_model | full_delta_rmse | delta_without_family | absolute_influence_points | base_family_identity_review |
+| --- | --- | --- | --- | --- | --- | --- |
+| llama | 4 | deepseek-ai/DeepSeek-R1-Distill-Llama-70B | 3.7171 | 1.8261 | 1.8911 | pending_source_evidence |
+| phi | 16 | 1024m/PHI-4-Hindi | 3.7171 | 5.1105 | 1.3934 | pending_source_evidence |
+| deepseek | 2 | Sourjayon/DeepSeek-R1-8b-Sify | 3.7171 | 2.6546 | 1.0625 | pending_source_evidence |
+| namespace:aidc-ai | 1 | AIDC-AI/Marco-o1 | 3.7171 | 4.4863 | 0.76918 | pending_source_evidence |
+| namespace:godlikehhd | 16 | godlikehhd/alpaca_data_full_2 | 3.7171 | 4.2814 | 0.56422 | pending_source_evidence |
+| qwen | 28 | 1024m/QWEN-14B-B100 | 3.7171 | 3.6945 | 0.022669 | pending_source_evidence |
 
 ### 共同规模支持
 

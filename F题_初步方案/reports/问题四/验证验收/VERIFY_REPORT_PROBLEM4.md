@@ -1,6 +1,6 @@
 # 问题四独立验收
 
-通过 37/37 项。
+通过 44/44 项。
 
 | 检查 | 结果 | 说明 |
 | --- | --- | --- |
@@ -19,11 +19,18 @@
 | Known developer id agrees with repository namespace | 通过 |  |
 | Compute subset has verified positive compute | 通过 |  |
 | Compute subset only strict pretrained | 通过 |  |
+| Manual review queue matches compute subset | 通过 |  |
+| Manual review not falsely marked complete | 通过 |  |
+| Manual review source fields copied from C4 | 通过 |  |
 | Ridge alpha selected by family-balanced CV | 通过 |  |
 | Time holdout row RMSE independently recomputed | 通过 |  |
 | Time holdout family-balanced RMSE independently recomputed | 通过 |  |
 | Temporal model comparison agrees with saved holdout errors | 通过 |  |
 | Temporal comparison bootstrap bounds valid | 通过 |  |
+| Rolling descriptive screen rules independently checked | 通过 |  |
+| Rolling train and test counts recomputed from panel | 通过 |  |
+| Rolling errors independently recomputed | 通过 |  |
+| Family review queue is ranked and pending | 通过 |  |
 | Compute association bootstrap intervals valid | 通过 |  |
 | C8 file count | 通过 |  |
 | C8 timestamps numeric | 通过 |  |
