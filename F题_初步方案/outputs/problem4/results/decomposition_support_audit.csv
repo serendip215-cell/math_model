@@ -1,0 +1,4 @@
+﻿stratum,early_n,late_n,overlap_logN_low,overlap_logN_high,overlap_early_n,overlap_late_n,overlap_early_families,overlap_late_families,eligible
+strict_pretrained,30,5,0.033021444682910656,1.1693804953119495,19,5,11,4,False
+strict_posttrained,33,67,0.06333335895174956,1.784003569779971,31,66,10,6,True
+license_only_pretrained,44,38,-0.8696662315049939,1.3723964324231115,38,38,16,7,True

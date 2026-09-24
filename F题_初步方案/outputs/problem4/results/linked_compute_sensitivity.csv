@@ -1,0 +1,3 @@
+﻿variable,n,families,spearman,p_uncorrected,min,max,status
+log_compute,30,10,0.8453493756237459,4.148195434269339e-09,20.521585163739257,24.545307116465825,association_only_nonrepresentative_linked_subset
+logN,30,10,0.604542657959588,0.0004026872028108335,-0.30627305107635305,1.7589799820136856,association_only_nonrepresentative_linked_subset

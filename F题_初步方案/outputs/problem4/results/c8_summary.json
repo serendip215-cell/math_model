@@ -1,0 +1,13 @@
+{
+  "json_files": 1954,
+  "parsed": 1954,
+  "invalid": 0,
+  "models_latest": 1861,
+  "duplicate_model_files": 93,
+  "modal_task_set_models": 1861,
+  "joined_to_C1": 1855,
+  "common_task_set_joined": 1855,
+  "common_set_rank_spearman": 0.997563401945852,
+  "median_raw_minus_C1_BBH": 21.162555388545197,
+  "same_scale_as_C1_established": false
+}

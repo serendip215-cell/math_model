@@ -1,0 +1,3 @@
+﻿origin,horizon_months,target_date,stratum,monthly_q90_log10N_trend,last_three_month_q90_N_B,positive_growth_established,time_model_improves_future_holdout,same_horizon_backtest_available,predicted_conditional_score,status
+2025-03-13,12,2026-03-13,strict_posttrained,-0.04428848851087397,14.695200000000002,False,False,False,,not_identified_no_positive_growth_or_validated_time_effect
+2025-03-13,24,2027-03-13,strict_posttrained,-0.04428848851087397,14.695200000000002,False,False,False,,not_identified_no_positive_growth_or_validated_time_effect

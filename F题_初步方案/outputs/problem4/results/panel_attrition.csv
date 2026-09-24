@@ -1,0 +1,8 @@
+﻿step,rows,unique_models,families
+C2 raw,4576,4497,
+valid date/positive N/six tasks,4561,4482,
+earliest valid submission per model,4482,4482,
+permissive license,1725,1725,284.0
+strict open weight + license,236,236,24.0
+strict pretrained,42,42,13.0
+strict posttrained,141,141,17.0

@@ -1,0 +1,663 @@
+"""Question 4: auditable leaderboard panel, conditional decomposition and scenarios.
+
+Observational date residuals are not causal technology effects. C6 bridge is
+local to Pythia and never used to translate the frontier outside its support.
+"""
+from __future__ import annotations
+
+import hashlib
+import json
+import math
+import re
+from pathlib import Path
+
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+from scipy.special import expit, logit
+from scipy.stats import spearmanr
+from sklearn.isotonic import IsotonicRegression
+from sklearn.linear_model import Ridge
+from sklearn.model_selection import GroupKFold
+from sklearn.preprocessing import StandardScaler
+
+PROJECT = Path(__file__).resolve().parents[2]
+DATA = PROJECT.parent / "F题_清洗后" / "C_efficiency_evolution"
+ROOT = PROJECT / "outputs" / "problem4"
+RESULTS = ROOT / "results"
+FIGURES = ROOT / "figures"
+REPORT = PROJECT / "reports" / "问题四" / "结果分析" / "RESULTS_REPORT_PROBLEM4.md"
+for folder in [RESULTS, FIGURES, REPORT.parent]:
+    folder.mkdir(parents=True, exist_ok=True)
+
+TASKS = ["IFEval", "BBH", "MATH Lvl 5", "GPQA", "MUSR", "MMLU-PRO"]
+PERMISSIVE = {"apache-2.0", "mit", "bsd-3-clause", "cc-by-4.0", "cc0-1.0"}
+CUTOFF = pd.Timestamp("2025-03-13")
+START = pd.Timestamp("2024-06-08")
+EARLY_END = pd.Timestamp("2024-08-31")
+LATE_START = pd.Timestamp("2025-01-01")
+RNG = np.random.default_rng(20260925)
+
+
+def save(frame: pd.DataFrame, filename: str) -> pd.DataFrame:
+    frame.to_csv(RESULTS / filename, index=False, encoding="utf-8-sig")
+    return frame
+
+
+def tbl(frame: pd.DataFrame, digits: int = 5) -> str:
+    view = frame.copy()
+    for col in view.select_dtypes(include=[np.number]).columns:
+        view[col] = view[col].map(lambda x: "" if pd.isna(x) else f"{x:.{digits}g}")
+    return "\n".join(["| " + " | ".join(view.columns) + " |",
+                      "| " + " | ".join(["---"] * len(view.columns)) + " |",
+                      *("| " + " | ".join(row) + " |" for row in view.astype(str).to_numpy())])
+
+
+def slug(value: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", str(value).split("/")[-1].lower())
+
+
+def family(value: str) -> str:
+    name = str(value).lower()
+    for label in ["qwen", "llama", "gemma", "mistral", "phi", "yi-", "pythia",
+                  "deepseek", "falcon", "smollm", "aya", "bloom", "gpt-neo", "olmo"]:
+        if label in name:
+            return label.rstrip("-")
+    return "namespace:" + name.split("/")[0]
+
+
+def model_type(raw: str) -> str:
+    s = str(raw)
+    if s == "🟢 pretrained": return "pretrained"
+    if s == "🟩 continuously pretrained": return "continually_pretrained"
+    if "chat models" in s or "fine-tuned" in s: return "posttrained"
+    if "merges" in s: return "merge"
+    return "other"
+
+
+def load_contract() -> dict[str, pd.DataFrame]:
+    names = {"C1": "leaderboard_cleaned.csv", "C2": "leaderboard_enhanced.csv",
+             "C3": "leaderboard_extended_timeseries.csv", "C4": "epoch_all_ai_models.csv",
+             "C5": "loss_benchmark_bridge.csv", "C6": "loss_benchmark_bridge_expanded.csv"}
+    expected = {"C1": 4576, "C2": 4576, "C3": 4599, "C4": 3523, "C5": 43, "C6": 75}
+    frames = {key: pd.read_csv(DATA / file, low_memory=False) for key, file in names.items()}
+    for key, frame in frames.items():
+        if len(frame) != expected[key]: raise ValueError(f"{key} row contract changed: {len(frame)}")
+    if not frames["C1"]["Model"].equals(frames["C2"]["Model"]):
+        raise ValueError("C1 and C2 row order/model alignment changed")
+    if not np.allclose(frames["C1"][TASKS].mean(axis=1),
+                       frames["C1"]["Average ⬆️"], atol=1e-10):
+        raise ValueError("C1 Average is not the six-task macro average")
+    save(pd.DataFrame([{"id": key, "file": names[key], "rows": len(frame),
+                        "columns": len(frame.columns)} for key, frame in frames.items()]),
+         "data_contract.csv")
+    return frames
+
+
+def prepare_panel(c2: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    a = c2.copy()
+    flow = [{"step": "C2 raw", "rows": len(a), "unique_models": a.Model.nunique()}]
+    a["submission"] = pd.to_datetime(a["Submission Date"], errors="coerce")
+    a["N_B"] = pd.to_numeric(a["#Params (B)"], errors="coerce")
+    a["Y"] = a[TASKS].mean(axis=1)
+    a = a[a.submission.between(START, CUTOFF) & a.N_B.gt(0) &
+          a[TASKS].notna().all(axis=1) & a[TASKS].ge(0).all(axis=1) &
+          a[TASKS].le(100).all(axis=1)].copy()
+    flow.append({"step": "valid date/positive N/six tasks", "rows": len(a),
+                 "unique_models": a.Model.nunique()})
+    a = a.sort_values(["Model", "submission"]).drop_duplicates("Model", keep="first")
+    flow.append({"step": "earliest valid submission per model", "rows": len(a),
+                 "unique_models": a.Model.nunique()})
+    a["type_group"] = a.Type.map(model_type)
+    a["family"] = a.Model.map(family)
+    a["namespace"] = a.Model.astype(str).str.split("/").str[0].str.lower()
+    a["license_permissive"] = a["Hub License"].isin(PERMISSIVE)
+    a["open_weight_confirmed"] = a.Epoch_AI_Open_Weights.eq("Yes")
+    a["strict_open"] = a.license_permissive & a.open_weight_confirmed
+    a["license_only_unverified"] = a.license_permissive & ~a.open_weight_confirmed
+    a["t_month"] = (a.submission - START).dt.days / 30.4375
+    a["logN"] = np.log10(a.N_B)
+    for step, filt in [("permissive license", a.license_permissive),
+                       ("strict open weight + license", a.strict_open),
+                       ("strict pretrained", a.strict_open & a.type_group.eq("pretrained")),
+                       ("strict posttrained", a.strict_open & a.type_group.eq("posttrained"))]:
+        sub = a[filt]
+        flow.append({"step": step, "rows": len(sub), "unique_models": sub.Model.nunique(),
+                     "families": sub.family.nunique()})
+    save(pd.DataFrame(flow), "panel_attrition.csv")
+    a["submission"] = a.submission.dt.strftime("%Y-%m-%d")
+    save(a[["Model", "submission", "N_B", "Y", *TASKS, "Hub License",
+            "Epoch_AI_Open_Weights", "type_group", "family", "namespace",
+            "license_permissive", "strict_open", "license_only_unverified",
+            "t_month", "logN"]], "audited_leaderboard_panel.csv")
+    return a, pd.DataFrame(flow)
+
+
+def link_c4(panel: pd.DataFrame, c4: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    left = panel.copy(); left["match_key"] = left.Model.map(slug)
+    right = c4.copy(); right["match_key"] = right.Model.map(slug)
+    counts = right.match_key.value_counts()
+    right = right[["match_key", "Model", "Parameters", "Training compute (FLOP)",
+                   "Training dataset size (total)", "Publication date", "Confidence",
+                   "Domain", "Open model weights?"]]
+    merged = left.merge(right, on="match_key", how="inner", suffixes=("_C1", "_C4"))
+    merged["C4_key_unique"] = merged.match_key.map(counts).eq(1)
+    merged["N_ratio"] = merged.N_B * 1e9 / pd.to_numeric(merged.Parameters, errors="coerce")
+    merged["N_consistent"] = merged.N_ratio.between(.7, 1.3)
+    published = pd.to_datetime(merged["Publication date"], errors="coerce")
+    submitted = pd.to_datetime(merged.submission, errors="coerce")
+    merged["date_consistent"] = published.notna() & ((published - submitted).dt.days <= 7)
+    merged["language_domain"] = merged.Domain.fillna("").str.contains("Language", case=False)
+    merged["source_confident"] = merged.Confidence.isin(["Confident", "Likely"])
+    merged["weight_agreement"] = ~merged.strict_open | merged["Open model weights?"].eq("Yes")
+    merged["accepted_link"] = (merged.C4_key_unique & merged.N_consistent &
+                               merged.date_consistent & merged.language_domain &
+                               merged.source_confident & merged.weight_agreement)
+    merged["usable_compute"] = (merged.accepted_link & merged.strict_open &
+                                 merged.type_group.eq("pretrained") &
+                                 pd.to_numeric(merged["Training compute (FLOP)"], errors="coerce").gt(0))
+    audit_cols = ["Model_C1", "Model_C4", "match_key", "N_B", "Parameters", "N_ratio",
+                  "submission", "Publication date", "Confidence", "Domain", "Open model weights?",
+                  "strict_open", "type_group", "C4_key_unique", "N_consistent",
+                  "date_consistent", "language_domain", "source_confident",
+                  "weight_agreement", "accepted_link", "usable_compute",
+                  "Training compute (FLOP)", "Training dataset size (total)"]
+    save(merged[audit_cols], "c1_c4_link_audit.csv")
+    use = merged[merged.usable_compute].copy()
+    save(use[audit_cols], "c4_compute_linked_subset.csv")
+    standalone = c4.copy()
+    standalone["publication"] = pd.to_datetime(standalone["Publication date"], errors="coerce")
+    standalone["compute"] = pd.to_numeric(standalone["Training compute (FLOP)"], errors="coerce")
+    standalone["data_size"] = pd.to_numeric(standalone["Training dataset size (total)"], errors="coerce")
+    standalone = standalone[standalone.Domain.fillna("").str.contains("Language", case=False) &
+                            standalone["Open model weights?"].eq("Yes") &
+                            standalone.Confidence.isin(["Confident", "Likely"]) &
+                            standalone.publication.between(pd.Timestamp("2019-01-01"), CUTOFF)]
+    standalone["year"] = standalone.publication.dt.year
+    save(standalone.groupby("year", as_index=False).agg(models=("Model", "size"),
+         compute_available=("compute", lambda s: int((s > 0).sum())),
+         data_available=("data_size", lambda s: int((s > 0).sum())),
+         median_compute_FLOPs=("compute", "median")), "c4_standalone_resource_trend.csv")
+    return merged, use
+
+
+def process_c8(panel: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+    rows = []
+    for file in sorted((DATA / "detailed_results").rglob("*.json")):
+        try:
+            obj = json.loads(file.read_text(encoding="utf-8"))
+            results = obj.get("results", {})
+            leaves = {key: val.get("acc_norm,none") for key, val in results.items()
+                      if key.startswith("leaderboard_bbh_") and isinstance(val, dict) and
+                      isinstance(val.get("acc_norm,none"), (float, int))}
+            if not leaves: raise ValueError("no BBH leaf task with acc_norm")
+            task_set = "|".join(sorted(leaves))
+            group = results.get("leaderboard_bbh", {}).get("acc_norm,none", np.nan)
+            rows.append({"file": str(file.relative_to(DATA)),
+                         "Model": obj.get("model_name", file.parent.name),
+                         "eval_timestamp": pd.to_numeric(obj.get("date"), errors="coerce"),
+                         "model_revision": obj.get("config", {}).get("model_revision"),
+                         "bbh_leaf_count": len(leaves),
+                         "task_set_hash": hashlib.sha256(task_set.encode()).hexdigest()[:16],
+                         "bbh_leaf_macro_raw_pct": 100 * float(np.mean(list(leaves.values()))),
+                         "bbh_group_raw_pct": 100 * float(group) if isinstance(group, (float, int)) else np.nan,
+                         "status": "parsed"})
+        except (OSError, ValueError, json.JSONDecodeError, TypeError) as exc:
+            rows.append({"file": str(file.relative_to(DATA)), "Model": file.parent.name,
+                         "status": f"invalid:{type(exc).__name__}"})
+    files = save(pd.DataFrame(rows), "c8_file_audit.csv")
+    valid = files[files.status.eq("parsed")].copy()
+    valid["eval_timestamp"] = pd.to_numeric(valid.eval_timestamp, errors="coerce")
+    latest = valid.sort_values(["Model", "eval_timestamp", "file"]).drop_duplicates("Model", keep="last")
+    earliest = valid.sort_values(["Model", "eval_timestamp", "file"]).drop_duplicates("Model", keep="first")
+    modal_set = latest.task_set_hash.value_counts().idxmax()
+    latest["common_task_set"] = latest.task_set_hash.eq(modal_set)
+    save(latest, "c8_bbh_leaf_aggregation.csv")
+    joined = latest.merge(panel[["Model", "BBH", "submission"]], on="Model", how="inner")
+    joined["raw_minus_C1_BBH"] = joined.bbh_leaf_macro_raw_pct - joined.BBH
+    earliest_score = earliest.set_index("Model").bbh_leaf_macro_raw_pct
+    joined["earliest_minus_latest_raw"] = joined.Model.map(earliest_score) - joined.bbh_leaf_macro_raw_pct
+    save(joined, "c8_c1_bbh_comparison.csv")
+    comparable = joined[joined.common_task_set]
+    rho = spearmanr(comparable.bbh_leaf_macro_raw_pct, comparable.BBH).statistic if len(comparable) >= 3 else np.nan
+    summary = {"json_files": len(files), "parsed": len(valid), "invalid": len(files) - len(valid),
+               "models_latest": len(latest), "duplicate_model_files": len(valid) - len(latest),
+               "modal_task_set_models": int(latest.common_task_set.sum()),
+               "joined_to_C1": len(joined), "common_task_set_joined": len(comparable),
+               "common_set_rank_spearman": float(rho) if np.isfinite(rho) else None,
+               "median_raw_minus_C1_BBH": float(comparable.raw_minus_C1_BBH.median()) if len(comparable) else None,
+               "same_scale_as_C1_established": False}
+    (RESULTS / "c8_summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+    return joined, summary
+
+
+def bridge(c6: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
+    high = c6[c6.Loss_Comparability.str.startswith("High")].copy().reset_index(drop=True)
+    if len(high) != 7: raise ValueError("C6 high-comparability contract changed")
+    rows = []
+    for i, test in high.iterrows():
+        train = high.drop(i)
+        iso = IsotonicRegression(increasing=False, out_of_bounds="clip")
+        iso.fit(train.Val_Loss, train.LB_Average)
+        rows.append({"Model": test.Model, "Val_Loss": test.Val_Loss,
+                     "LB_Average": test.LB_Average,
+                     "loo_monotone_prediction": float(iso.predict([test.Val_Loss])[0]),
+                     "loo_constant_prediction": float(train.LB_Average.mean())})
+    loo = save(pd.DataFrame(rows), "bridge_high_loo.csv")
+    medium = c6[c6.Loss_Comparability.str.startswith("Medium")].copy()
+    medium["source_group_size"] = medium.groupby("Loss_Source").Model.transform("size")
+    save(medium[["Model", "Loss_Source", "Loss_Comparability", "Val_Loss",
+                 "LB_Average", "source_group_size"]], "bridge_medium_source_audit.csv")
+    rho = spearmanr(high.Val_Loss, high.LB_Average)
+    rmse_iso = float(np.sqrt(np.mean((loo.loo_monotone_prediction - loo.LB_Average) ** 2)))
+    rmse_const = float(np.sqrt(np.mean((loo.loo_constant_prediction - loo.LB_Average) ** 2)))
+    summary = {"high_n": len(high), "high_unique_family": 1,
+               "high_loss_range": [float(high.Val_Loss.min()), float(high.Val_Loss.max())],
+               "high_score_range": [float(high.LB_Average.min()), float(high.LB_Average.max())],
+               "high_spearman": float(rho.statistic), "high_spearman_p": float(rho.pvalue),
+               "loo_monotone_rmse": rmse_iso, "loo_constant_rmse": rmse_const,
+               "local_bridge_predictive_gain": bool(rmse_iso < rmse_const),
+               "medium_n": len(medium), "medium_sources_with_pairs": int(
+                   medium.loc[medium.source_group_size >= 2, "Loss_Source"].nunique()),
+               "frontier_translation_identified": False}
+    (RESULTS / "bridge_summary.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+    return loo, summary
+
+
+def score_fit(frame: pd.DataFrame, use_time: bool, alpha: float = 1.0) -> tuple:
+    cols = ["logN", "t_month"] if use_time else ["logN"]
+    x = frame[cols].to_numpy(dtype=float)
+    scaler = StandardScaler().fit(x)
+    y = logit((frame.Y.to_numpy(dtype=float) + .5) / 101.0)
+    fit = Ridge(alpha=alpha).fit(scaler.transform(x), y)
+    return scaler, fit, cols
+
+
+def score_predict(fitted: tuple, frame: pd.DataFrame) -> np.ndarray:
+    scaler, fit, cols = fitted
+    return np.clip(101.0 * expit(fit.predict(scaler.transform(
+        frame[cols].to_numpy(dtype=float)))) - .5, 0, 100)
+
+
+def choose_alpha(train: pd.DataFrame, use_time: bool) -> tuple[float, pd.DataFrame]:
+    groups = train.family.to_numpy()
+    n_splits = min(5, len(np.unique(groups)))
+    rows = []
+    if n_splits < 3:
+        return 1.0, pd.DataFrame()
+    for alpha in [.1, 1.0, 10.0, 100.0]:
+        errs = []
+        for tr, te in GroupKFold(n_splits=n_splits).split(train, groups=groups):
+            fitted = score_fit(train.iloc[tr], use_time, alpha)
+            pred = score_predict(fitted, train.iloc[te])
+            errs.extend((pred - train.iloc[te].Y.to_numpy()) ** 2)
+        rows.append({"alpha": alpha, "group_cv_rmse": float(np.sqrt(np.mean(errs))),
+                     "use_time": use_time, "n_group_folds": n_splits})
+    cv = pd.DataFrame(rows)
+    return float(cv.loc[cv.group_cv_rmse.idxmin(), "alpha"]), cv
+
+
+def fit_leaderboard(panel: pd.DataFrame) -> tuple[dict, pd.DataFrame]:
+    summary = []
+    cvs = []
+    fits = {}
+    for stratum, filt in [("strict_pretrained", panel.strict_open & panel.type_group.eq("pretrained")),
+                          ("strict_posttrained", panel.strict_open & panel.type_group.eq("posttrained")),
+                          ("license_only_pretrained", panel.license_only_unverified &
+                           panel.type_group.eq("pretrained"))]:
+        sub = panel[filt].copy().reset_index(drop=True)
+        train = sub[pd.to_datetime(sub.submission) < LATE_START].copy()
+        test = sub[pd.to_datetime(sub.submission) >= LATE_START].copy()
+        if len(train) < 12 or len(test) < 3 or train.family.nunique() < 3:
+            summary.append({"stratum": stratum, "n": len(sub), "families": sub.family.nunique(),
+                            "train_n": len(train), "future_holdout_n": len(test),
+                            "status": "insufficient_for_model"})
+            continue
+        predictions = {}
+        for variant, use_time in [("N_only", False), ("N_plus_time", True)]:
+            alpha, cv = choose_alpha(train, use_time)
+            if len(cv):
+                cv["stratum"] = stratum
+                cv["variant"] = variant
+                cvs.append(cv)
+            fitted_train = score_fit(train, use_time, alpha)
+            pred = score_predict(fitted_train, test)
+            predictions[variant] = pred
+            fitted_full = score_fit(sub, use_time, alpha)
+            fits[(stratum, variant)] = fitted_full
+            summary.append({"stratum": stratum, "variant": variant, "n": len(sub),
+                            "families": sub.family.nunique(), "train_n": len(train),
+                            "future_holdout_n": len(test), "alpha": alpha,
+                            "future_holdout_rmse": float(np.sqrt(np.mean((pred - test.Y) ** 2))),
+                            "future_holdout_mae": float(np.mean(abs(pred - test.Y))),
+                            "future_holdout_bias": float(np.mean(pred - test.Y)),
+                            "status": "fit"})
+        base = np.repeat(train.Y.mean(), len(test))
+        summary.append({"stratum": stratum, "variant": "training_mean",
+                        "n": len(sub), "families": sub.family.nunique(), "train_n": len(train),
+                        "future_holdout_n": len(test),
+                        "future_holdout_rmse": float(np.sqrt(np.mean((base - test.Y) ** 2))),
+                        "future_holdout_mae": float(np.mean(abs(base - test.Y))),
+                        "future_holdout_bias": float(np.mean(base - test.Y)), "status": "baseline"})
+    fit_table = save(pd.DataFrame(summary), "model_holdout_metrics.csv")
+    if cvs: save(pd.concat(cvs, ignore_index=True), "family_group_cv.csv")
+    return fits, fit_table
+
+
+def decompose(panel: pd.DataFrame, fits: dict) -> tuple[pd.DataFrame, pd.DataFrame]:
+    audits = []; pieces = []; boots = []
+    for stratum, filt in [("strict_pretrained", panel.strict_open & panel.type_group.eq("pretrained")),
+                          ("strict_posttrained", panel.strict_open & panel.type_group.eq("posttrained")),
+                          ("license_only_pretrained", panel.license_only_unverified &
+                           panel.type_group.eq("pretrained"))]:
+        sub = panel[filt].copy()
+        early = sub[pd.to_datetime(sub.submission) <= EARLY_END].copy()
+        late = sub[pd.to_datetime(sub.submission) >= LATE_START].copy()
+        lo = max(early.logN.min(), late.logN.min()) if len(early) and len(late) else np.nan
+        hi = min(early.logN.max(), late.logN.max()) if len(early) and len(late) else np.nan
+        e = early[early.logN.between(lo, hi)].copy()
+        l = late[late.logN.between(lo, hi)].copy()
+        eligible = (len(e) >= 10 and len(l) >= 10 and e.family.nunique() >= 3 and
+                    l.family.nunique() >= 3 and lo < hi and
+                    (stratum, "N_plus_time") in fits)
+        audits.append({"stratum": stratum, "early_n": len(early), "late_n": len(late),
+                       "overlap_logN_low": lo, "overlap_logN_high": hi,
+                       "overlap_early_n": len(e), "overlap_late_n": len(l),
+                       "overlap_early_families": e.family.nunique(),
+                       "overlap_late_families": l.family.nunique(),
+                       "eligible": eligible})
+        if not eligible: continue
+        fitted = fits[(stratum, "N_plus_time")]
+        t0, t1 = float(e.t_month.median()), float(l.t_month.median())
+
+        def terms(f: tuple, ee: pd.DataFrame, ll: pd.DataFrame) -> tuple:
+            grids = []
+            for base, t in [(ee, t0), (ee, t1), (ll, t0), (ll, t1)]:
+                temp = base.copy(); temp["t_month"] = t
+                grids.append(float(score_predict(f, temp).mean()))
+            m00, m01, m10, m11 = grids
+            scale = .5 * ((m10 - m00) + (m11 - m01))
+            time = .5 * ((m01 - m00) + (m11 - m10))
+            return scale, time, m11 - m00
+
+        scale, time, predicted = terms(fitted, e, l)
+        actual = float(l.Y.mean() - e.Y.mean())
+        pieces.append({"stratum": stratum, "scale_points": scale,
+                       "conditional_time_points": time, "model_change_points": predicted,
+                       "observed_change_points": actual,
+                       "unexplained_points": actual - predicted, "t0": t0, "t1": t1,
+                       "causal_attribution": False})
+        families = sub.family.unique()
+        for b in range(200):
+            sampled = RNG.choice(families, size=len(families), replace=True)
+            draw = pd.concat([sub[sub.family.eq(g)] for g in sampled], ignore_index=True)
+            ee = draw[pd.to_datetime(draw.submission).le(EARLY_END) & draw.logN.between(lo, hi)]
+            ll = draw[pd.to_datetime(draw.submission).ge(LATE_START) & draw.logN.between(lo, hi)]
+            if len(ee) < 3 or len(ll) < 3: continue
+            try:
+                f = score_fit(draw, True, fitted[1].alpha)
+                s, t, total = terms(f, ee, ll)
+                boots.append({"stratum": stratum, "replicate": b, "scale_points": s,
+                              "conditional_time_points": t, "model_change_points": total,
+                              "observed_change_points": float(ll.Y.mean() - ee.Y.mean())})
+            except ValueError:
+                continue
+    audit = save(pd.DataFrame(audits), "decomposition_support_audit.csv")
+    result = save(pd.DataFrame(pieces), "conditional_decomposition.csv")
+    if boots: save(pd.DataFrame(boots), "decomposition_family_bootstrap.csv")
+    return audit, result
+
+
+def monthly_frontier(panel: pd.DataFrame) -> pd.DataFrame:
+    sub = panel[panel.strict_open & panel.type_group.isin(["pretrained", "posttrained"])].copy()
+    sub["month"] = pd.to_datetime(sub.submission).dt.to_period("M").astype(str)
+    monthly = sub.groupby(["type_group", "month"], as_index=False).agg(
+        models=("Model", "size"), families=("family", "nunique"),
+        max_score=("Y", "max"), q90_score=("Y", lambda s: float(s.quantile(.9))),
+        q90_N_B=("N_B", lambda s: float(s.quantile(.9))))
+    return save(monthly, "observed_monthly_frontier.csv")
+
+
+def compute_sensitivity(links: pd.DataFrame) -> pd.DataFrame:
+    sub = links.copy()
+    sub["log_compute"] = np.log10(pd.to_numeric(sub["Training compute (FLOP)"], errors="coerce"))
+    sub = sub[np.isfinite(sub.log_compute)].copy()
+    if len(sub) < 10 or sub.Model_C1.nunique() < 10:
+        return save(pd.DataFrame([{"status": "too_few_verified_links", "n": len(sub)}]),
+                    "linked_compute_sensitivity.csv")
+    rows = []
+    for variable in ["log_compute", "logN"]:
+        rho = spearmanr(sub[variable], sub.Y)
+        rows.append({"variable": variable, "n": len(sub), "families": sub.family.nunique(),
+                     "spearman": float(rho.statistic), "p_uncorrected": float(rho.pvalue),
+                     "min": float(sub[variable].min()), "max": float(sub[variable].max()),
+                     "status": "association_only_nonrepresentative_linked_subset"})
+    return save(pd.DataFrame(rows), "linked_compute_sensitivity.csv")
+
+
+def conditional_scenarios(panel: pd.DataFrame, fits: dict, holdout: pd.DataFrame,
+                          monthly: pd.DataFrame) -> pd.DataFrame:
+    stratum = "strict_posttrained"
+    sub = panel[panel.strict_open & panel.type_group.eq("posttrained")].copy()
+    hist = monthly[(monthly.type_group == "posttrained") & (monthly.models >= 3)].copy()
+    if len(hist) < 4 or (stratum, "N_only") not in fits:
+        return save(pd.DataFrame([{"status": "insufficient_monthly_resource_history"}]),
+                    "conditional_frontier_scenarios.csv")
+    month_dates = pd.to_datetime(hist.month)
+    hist["month_index"] = (month_dates.dt.year - 2024) * 12 + month_dates.dt.month - 6
+    rate = float(np.polyfit(hist.month_index, np.log10(hist.q90_N_B), 1)[0])
+    anchor = float(np.log10(hist.tail(3).q90_N_B.median()))
+    hm = holdout[(holdout.stratum == stratum) & holdout.variant.isin(["N_only", "N_plus_time"])]
+    temporal_gain = (len(hm) == 2 and hm.loc[hm.variant.eq("N_plus_time"),
+                    "future_holdout_rmse"].iloc[0] < hm.loc[hm.variant.eq("N_only"),
+                    "future_holdout_rmse"].iloc[0])
+    # A negative empirical size trend does not identify a positive growth/slowdown
+    # path. A time term that loses on future holdout cannot support extrapolation.
+    identified = rate > 0 and temporal_gain and len(hist) >= 6
+    records = [{"origin": str(CUTOFF.date()), "horizon_months": months,
+                "target_date": str((CUTOFF + pd.DateOffset(months=months)).date()),
+                "stratum": stratum, "monthly_q90_log10N_trend": rate,
+                "last_three_month_q90_N_B": 10 ** anchor,
+                "positive_growth_established": bool(rate > 0),
+                "time_model_improves_future_holdout": bool(temporal_gain),
+                "same_horizon_backtest_available": False,
+                "predicted_conditional_score": np.nan,
+                "status": "not_identified_no_positive_growth_or_validated_time_effect" if not identified
+                          else "not_identified_no_same_horizon_backtest"}
+               for months in [12, 24]]
+    return save(pd.DataFrame(records), "conditional_frontier_scenarios.csv")
+
+
+def task_sensitivity(panel: pd.DataFrame) -> pd.DataFrame:
+    sub = panel[panel.strict_open & panel.type_group.eq("posttrained")].copy()
+    early = sub[pd.to_datetime(sub.submission).le(EARLY_END)]
+    late = sub[pd.to_datetime(sub.submission).ge(LATE_START)]
+    rows = []
+    for label, cols in [("six_task_mean", TASKS)] + [(f"exclude_{task}",
+            [x for x in TASKS if x != task]) for task in TASKS]:
+        rows.append({"score_definition": label, "early_n": len(early), "late_n": len(late),
+                     "early_mean": float(early[cols].mean(axis=1).mean()),
+                     "late_mean": float(late[cols].mean(axis=1).mean()),
+                     "late_minus_early": float(late[cols].mean(axis=1).mean() -
+                                               early[cols].mean(axis=1).mean())})
+    for task in TASKS:
+        rows.append({"score_definition": f"task_{task}", "early_n": len(early),
+                     "late_n": len(late), "early_mean": float(early[task].mean()),
+                     "late_mean": float(late[task].mean()),
+                     "late_minus_early": float(late[task].mean() - early[task].mean())})
+    return save(pd.DataFrame(rows), "task_and_leave_one_out_sensitivity.csv")
+
+
+def task_model_validation(panel: pd.DataFrame) -> pd.DataFrame:
+    sub = panel[panel.strict_open & panel.type_group.eq("posttrained")].copy()
+    train_mask = pd.to_datetime(sub.submission).lt(LATE_START)
+    records = []
+    for task in TASKS:
+        working = sub.copy(); working["Y"] = working[task]
+        train = working[train_mask]; test = working[~train_mask]
+        for variant, use_time in [("N_only", False), ("N_plus_time", True)]:
+            alpha, _ = choose_alpha(train, use_time)
+            fitted = score_fit(train, use_time, alpha)
+            pred = score_predict(fitted, test)
+            records.append({"task": task, "variant": variant,
+                            "train_n": len(train), "future_holdout_n": len(test),
+                            "alpha": alpha,
+                            "future_holdout_rmse": float(np.sqrt(np.mean((pred - test.Y) ** 2))),
+                            "future_holdout_bias": float(np.mean(pred - test.Y))})
+    return save(pd.DataFrame(records), "task_model_future_holdout.csv")
+
+
+def draw_figures(panel: pd.DataFrame, flow: pd.DataFrame, monthly: pd.DataFrame,
+                 decomposition: pd.DataFrame, bridge_loo: pd.DataFrame,
+                 c8_joined: pd.DataFrame, scenarios: pd.DataFrame) -> None:
+    plt.rcParams.update({"font.size": 9, "figure.dpi": 140, "savefig.bbox": "tight"})
+    fig, ax = plt.subplots(figsize=(8, 3.5))
+    part = flow.iloc[[0, 1, 2, 3, 4]]
+    ax.barh(part.step.iloc[::-1], part.rows.iloc[::-1], color="#376b9a")
+    ax.set_xlabel("Rows retained")
+    ax.set_title("Leaderboard sample audit")
+    fig.savefig(FIGURES / "q4_sample_attrition.pdf"); plt.close(fig)
+
+    strict = panel[panel.strict_open & panel.type_group.isin(["pretrained", "posttrained"])]
+    fig, ax = plt.subplots(figsize=(7, 4))
+    for group, color in [("pretrained", "#23688e"), ("posttrained", "#c27036")]:
+        subset = strict[strict.type_group.eq(group)]
+        ax.scatter(subset.logN, subset.Y, s=13, alpha=.62, label=f"{group} (n={len(subset)})", color=color)
+    ax.set(xlabel="log10(parameters, B)", ylabel="Six-task mean (%)",
+           title="Strict open sample: parameter and score support")
+    ax.legend(); fig.savefig(FIGURES / "q4_scale_score_support.pdf"); plt.close(fig)
+
+    fig, ax = plt.subplots(figsize=(8, 4))
+    for group, style in [("pretrained", "o-"), ("posttrained", "s-")]:
+        sub = monthly[monthly.type_group.eq(group)]
+        ax.plot(pd.to_datetime(sub.month), sub.q90_score, style, label=f"{group} q90")
+        for _, row in sub.iterrows():
+            ax.annotate(str(int(row.models)), (pd.Timestamp(row.month), row.q90_score),
+                        xytext=(0, 4), textcoords="offset points", fontsize=6, ha="center")
+    ax.set(xlabel="Submission month", ylabel="Observed 90th percentile score (%)",
+           title="Observed frontier; labels are monthly model counts")
+    ax.legend(); fig.autofmt_xdate()
+    fig.savefig(FIGURES / "q4_observed_frontier.pdf"); plt.close(fig)
+
+    if len(decomposition):
+        boot_file = RESULTS / "decomposition_family_bootstrap.csv"
+        boot = pd.read_csv(boot_file) if boot_file.exists() else pd.DataFrame()
+        fig, ax = plt.subplots(figsize=(6, 3.5))
+        positions = np.arange(len(decomposition))
+        for column, shift, label in [("scale_points", -.17, "Parameter distribution"),
+                                     ("conditional_time_points", .17, "Conditional time residual")]:
+            values = decomposition[column].to_numpy()
+            yerr = None
+            if len(boot):
+                bounds = np.array([boot.loc[boot.stratum.eq(s), column].quantile([.025, .975]).to_numpy()
+                                   for s in decomposition.stratum])
+                yerr = np.maximum(0, np.vstack([values - bounds[:, 0], bounds[:, 1] - values]))
+            ax.bar(positions + shift, values, width=.33, yerr=yerr, capsize=2, label=label)
+        ax.axhline(0, color="black", lw=.7)
+        labels = ["Strict open posttrained" if x == "strict_posttrained"
+                  else "License only; weights unverified" for x in decomposition.stratum]
+        ax.set_xticks(positions, labels, rotation=10)
+        ax.set_ylabel("Predicted score change (points)")
+        ax.set_title("Exploratory decomposition; 2.5-97.5% family-bootstrap intervals")
+        ax.legend(fontsize=8)
+        fig.savefig(FIGURES / "q4_conditional_decomposition.pdf"); plt.close(fig)
+
+    fig, ax = plt.subplots(figsize=(5.5, 4))
+    ax.scatter(bridge_loo.Val_Loss, bridge_loo.LB_Average, label="Pythia, high comparability")
+    order = bridge_loo.sort_values("Val_Loss")
+    ax.plot(order.Val_Loss, order.loo_monotone_prediction, "--", label="LOO monotone predictions")
+    ax.set(xlabel="Validation loss (same source)", ylabel="Leaderboard mean (%)",
+           title="C6 local bridge: 7 Pythia observations")
+    ax.legend(fontsize=8); fig.savefig(FIGURES / "q4_loss_benchmark_bridge.pdf"); plt.close(fig)
+
+    common = c8_joined[c8_joined.common_task_set]
+    if len(common):
+        fig, ax = plt.subplots(figsize=(5.5, 4))
+        ax.scatter(common.bbh_leaf_macro_raw_pct, common.BBH, s=10, alpha=.5)
+        ax.set(xlabel="C8 leaf macro raw accuracy (%)", ylabel="C1 BBH reported score",
+               title="Different metric scales; do not assert equality")
+        fig.savefig(FIGURES / "q4_c8_c1_scale_audit.pdf"); plt.close(fig)
+
+    # No long-horizon curve when growth and time extrapolation are unidentified.
+
+
+def write_report(flow: pd.DataFrame, links: pd.DataFrame, usable: pd.DataFrame,
+                 c8: dict, bridge_info: dict, fit_metrics: pd.DataFrame,
+                 support: pd.DataFrame, decomp: pd.DataFrame, monthly: pd.DataFrame,
+                 compute: pd.DataFrame, scenarios: pd.DataFrame,
+                 tasks: pd.DataFrame, task_models: pd.DataFrame) -> None:
+    metric_cols = ["stratum", "variant", "n", "families", "train_n",
+                   "future_holdout_n", "future_holdout_rmse", "future_holdout_bias", "status"]
+    metrics_view = fit_metrics.reindex(columns=metric_cols)
+    scenario_view = scenarios.reindex(columns=["horizon_months", "monthly_q90_log10N_trend",
+        "positive_growth_established", "time_model_improves_future_holdout",
+        "same_horizon_backtest_available", "predicted_conditional_score", "status"])
+    lines = ["# 问题四结果：开放模型能力变化与条件情景", "",
+             "> 计算日期基于附件快照。预测原点是同协议 C1 的 2025-03-13，12/24 个月情景没有同长度回测，不能解读为当前实测前沿或可信外推预测。",
+             "", "## 数据与三个硬边界", "",
+             "1. **开放性：** 主样本要求 C2 权重明确为 Yes 且许可证在预设宽松集合中。缺失权重证据不视为开放。预训练、后训练分层；合并模型不参与主分解。",
+             "2. **跨表连接：** C1/C4 只接受唯一名称归一化候选、参数量接近、发布日期可核、语言领域、Confident/Likely 且权重信息无冲突的连接。该表仅是非随机子样本。",
+             "3. **Loss 桥接和未来：** C6 高可比只有同一家族的 7 个 Pythia 点；C1 可比评分截至 2025-03，不能把问题三 Loss 换算成高分前沿，也没有 12/24 个月同协议回测。",
+             "", "### 样本流失", "", tbl(flow), "",
+             f"C1/C4 名称候选 {len(links)} 行，规则接受 {int(links.accepted_link.sum())} 行，严格开放预训练且算力可用 {len(usable)} 行。候选和接受均不等于人工逐项核验。",
+             "", "### C8 逐任务核算", "",
+             f"扫描 {c8['json_files']} 个 JSON；解析 {c8['parsed']} 个；模型去重后 {c8['models_latest']} 个；与 C1 连接 {c8['joined_to_C1']} 个，其中同一叶任务集合 {c8['common_task_set_joined']} 个。C8 叶任务宏平均与 C1 BBH **数值标尺未证实相同**，因此只做覆盖与秩序审计，不强行回代相等。重复版本以记录时间及文件名排序取末份。",
+             "", "## 规模、时间残差与验证", "",
+             "模型将六任务均分映射到 logit 空间，拟合 log10 参数量与提交时间的 Ridge；超参数在训练期按模型家族 GroupKFold 选择。2025-01 至 03 月留作时间留出，比较仅规模、规模加时间与训练均值。时间系数吸收未观测架构、数据、后训练和选择变化，不能解释为纯技术进步。",
+             "", tbl(metrics_view), "", "### 共同规模支持", "", tbl(support), ""]
+    if len(decomp):
+        lines += ["只有支持审计通过的层才执行早期（截至 2024-08）与晚期（2025-01 至 03）两因素 Shapley 分解。分解数值是模型拟合变化，与实测变化另列；家族聚簇重抽样输出在 `decomposition_family_bootstrap.csv`。未通过者不报贡献百分比。",
+                  "", tbl(decomp), ""]
+        boot = pd.read_csv(RESULTS / "decomposition_family_bootstrap.csv")
+        quant = boot.groupby("stratum")[["scale_points", "conditional_time_points",
+                 "model_change_points"]].quantile([.025, .5, .975]).reset_index().rename(
+                 columns={"level_1": "quantile"})
+        lines += ["家族重抽样分位数如下。严格后训练层的模型总变化区间跨 0；且时间模型在未来时段留出 RMSE 高于仅规模模型。因此分解只作为探索性统计，不能形成稳定的贡献比例或已验证时间增长机制。许可证单独确认、权重未确认层也仅为敏感性。",
+                  "", tbl(quant), ""]
+    else:
+        lines += ["所有层均未通过共同规模与独立家族门槛，不报告贡献比例。", ""]
+    lines += ["### 任务敏感性", "", tbl(tasks[["score_definition", "late_minus_early"]]), "",
+              "六项任务各自用训练期家族分组 CV 选正则化强度，再在 2025-01 至 03 月做时间留出。各任务的尺度和难度不同，原始 RMSE 不能直接相加；它们用于检查综合均分是否掩盖异质性。",
+              "", tbl(task_models[["task", "variant", "future_holdout_n",
+                                   "future_holdout_rmse", "future_holdout_bias"]]), "",
+              "## 算力审计与观测前沿", "",
+              "C4 连接子样本只报告关联；C4 独立资源趋势不与 Benchmark 行序拼接。每月观测最大值和 90% 分位随样本量列出；稀疏月份的分位数尤其不稳定。",
+              "", tbl(compute), "", tbl(monthly[["type_group", "month", "models", "families", "max_score", "q90_score"]]), "",
+              "## Loss 桥接", "",
+              f"C6 高可比 n={bridge_info['high_n']}、独立家族 1。Loss 范围 {bridge_info['high_loss_range']}，得分范围 {bridge_info['high_score_range']}。逐点留一单调映射 RMSE={bridge_info['loo_monotone_rmse']:.4f}，常数基线 RMSE={bridge_info['loo_constant_rmse']:.4f}。这个留一不检验跨家族泛化；前沿数值桥接未识别。",
+              "", "## 12/24 个月条件情景", "",
+              "观测月度高分位参数量趋势为负，不能据此定义正增长放缓；含时间模型的未来时段留出也不优于仅规模模型。因此不计算 12/24 个月得分，避免把缺少支持的外推数值误当预测。这里的增长率是参数量口径，不是训练算力。",
+              "", tbl(scenario_view), "", "## 图表与可复算文件", "",
+              "图表在 `outputs/problem4/figures/`，全部由同一脚本生成。原始合同、连接逐行理由、C8 文件审计、留出指标、分解支持和重抽样、资源情景均在 `outputs/problem4/results/`。",
+              "", "## 结论边界", "",
+              "排行榜提交不是随机实验；主结果仅覆盖许可证和权重可核的模型。严格开放预训练的晚期样本较少。粗粒度家族划分与模型重复提交可能缩小有效样本量。C4 的同名归一化连接仍应人工复核后用于正式论文。C8 与 C1 BBH 标尺不同。C6 桥接不支持前三问 Loss 向当前或未来排行榜前沿转译。长期情景没有同长度回测；不得写成已经验证的预测。", ""]
+    REPORT.write_text("\n".join(lines), encoding="utf-8")
+
+
+def main() -> None:
+    data = load_contract()
+    panel, flow = prepare_panel(data["C2"])
+    links, usable = link_c4(panel, data["C4"])
+    c8_joined, c8 = process_c8(panel)
+    bridge_loo, bridge_info = bridge(data["C6"])
+    fits, metrics = fit_leaderboard(panel)
+    support, decomp = decompose(panel, fits)
+    monthly = monthly_frontier(panel)
+    compute = compute_sensitivity(usable)
+    scenarios = conditional_scenarios(panel, fits, metrics, monthly)
+    tasks = task_sensitivity(panel)
+    task_models = task_model_validation(panel)
+    draw_figures(panel, flow, monthly, decomp, bridge_loo, c8_joined, scenarios)
+    write_report(flow, links, usable, c8, bridge_info, metrics,
+                 support, decomp, monthly, compute, scenarios, tasks, task_models)
+    print(json.dumps({"strict_pretrained": int((panel.strict_open &
+          panel.type_group.eq("pretrained")).sum()), "strict_posttrained": int((panel.strict_open &
+          panel.type_group.eq("posttrained")).sum()), "C4_usable_compute": len(usable),
+          "C8_parsed": c8["parsed"], "decomposition_eligible": decomp.stratum.tolist(),
+          "scenario_rows": len(scenarios)}, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()

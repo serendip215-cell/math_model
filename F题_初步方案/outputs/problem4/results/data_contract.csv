@@ -1,0 +1,7 @@
+﻿id,file,rows,columns
+C1,leaderboard_cleaned.csv,4576,12
+C2,leaderboard_enhanced.csv,4576,15
+C3,leaderboard_extended_timeseries.csv,4599,11
+C4,epoch_all_ai_models.csv,3523,57
+C5,loss_benchmark_bridge.csv,43,13
+C6,loss_benchmark_bridge_expanded.csv,75,13

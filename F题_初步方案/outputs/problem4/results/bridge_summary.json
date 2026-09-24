@@ -1,0 +1,20 @@
+{
+  "high_n": 7,
+  "high_unique_family": 1,
+  "high_loss_range": [
+    2.0933,
+    2.5978
+  ],
+  "high_score_range": [
+    5.07026822083096,
+    6.059841492942702
+  ],
+  "high_spearman": -0.6071428571428572,
+  "high_spearman_p": 0.14823116148116164,
+  "loo_monotone_rmse": 0.436634672876873,
+  "loo_constant_rmse": 0.42444846214318305,
+  "local_bridge_predictive_gain": false,
+  "medium_n": 68,
+  "medium_sources_with_pairs": 16,
+  "frontier_translation_identified": false
+}
