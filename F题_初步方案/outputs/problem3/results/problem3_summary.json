@@ -1,0 +1,31 @@
+{
+  "support": {
+    "N_B": [
+      0.070542,
+      11.965825
+    ],
+    "D_B": [
+      10.0,
+      299.893
+    ],
+    "Q_B": [
+      0.4,
+      1.0
+    ]
+  },
+  "C7_contexts": [
+    2048,
+    4096,
+    8192,
+    32768,
+    131072
+  ],
+  "L_crit": 30000.0,
+  "solutions": 12,
+  "path_points": 138,
+  "max_constraint_violation": 2.220446049250313e-16,
+  "max_optimized_minus_grid": -9.970283265658964e-09,
+  "conditional_bootstrap_replicates": 80,
+  "transitions": 13,
+  "no_QA_to_QB_calibration": true
+}
