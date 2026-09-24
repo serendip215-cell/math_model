@@ -41,14 +41,53 @@ def main() -> None:
 
     links = read("c1_c4_link_audit.csv")
     accepted = links[links.accepted_link]
-    rule_cols = ["C4_key_unique", "N_consistent", "date_consistent", "language_domain",
+    rule_cols = ["C4_key_unique", "source_identity_supported", "N_consistent",
+                 "date_consistent", "language_domain",
                  "source_confident", "weight_agreement"]
     check("Every accepted link passes all rules", accepted[rule_cols].all(axis=None))
+    check("Accepted C4 records are one-to-one", accepted.Model_C4.is_unique and
+          accepted.Model_C1.is_unique)
+    has_dev = accepted[accepted.developer_id_available]
+    check("Known developer id agrees with repository namespace",
+          has_dev.developer_id_matches.all())
     usable = read("c4_compute_linked_subset.csv")
     check("Compute subset has verified positive compute", usable.usable_compute.all() and
           pd.to_numeric(usable["Training compute (FLOP)"], errors="coerce").gt(0).all())
     check("Compute subset only strict pretrained", usable.strict_open.all() and
           usable.type_group.eq("pretrained").all())
+
+    holdout = read("future_holdout_predictions.csv")
+    metrics = read("model_holdout_metrics.csv")
+    fit_metrics = metrics[metrics.status.isin(["fit", "baseline"])]
+    row_ok = []; family_ok = []
+    for item in fit_metrics.itertuples():
+        rows = holdout[(holdout.stratum == item.stratum) & (holdout.variant == item.variant)]
+        sq = (rows.predicted - rows.observed) ** 2
+        row_ok.append(len(rows) == item.future_holdout_n and np.isclose(
+            np.sqrt(sq.mean()), item.future_holdout_rmse))
+        family_mse = rows.assign(squared_error=sq).groupby("family").squared_error.mean()
+        family_ok.append(len(family_mse) == item.future_holdout_families and np.isclose(
+            np.sqrt(family_mse.mean()), item.future_holdout_family_balanced_rmse))
+    check("Time holdout row RMSE independently recomputed", all(row_ok))
+    check("Time holdout family-balanced RMSE independently recomputed", all(family_ok))
+    temporal = read("temporal_model_comparison.csv")
+    comparison_ok = []
+    for item in temporal.itertuples():
+        a = metrics[(metrics.stratum == item.stratum) & metrics.variant.eq("N_only")]
+        b = metrics[(metrics.stratum == item.stratum) & metrics.variant.eq("N_plus_time")]
+        comparison_ok.append(np.isclose(b.future_holdout_family_balanced_rmse.iloc[0] -
+                                        a.future_holdout_family_balanced_rmse.iloc[0],
+                                        item.delta_family_balanced_rmse_time_minus_N))
+    check("Temporal model comparison agrees with saved holdout errors", all(comparison_ok))
+    check("Temporal comparison bootstrap bounds valid", temporal.family_bootstrap_ci_low.le(
+          temporal.family_bootstrap_ci_high).all())
+
+    compute = read("linked_compute_sensitivity.csv")
+    check("Compute association bootstrap intervals valid", compute.families.ge(2).all() and
+          compute.family_bootstrap_valid_replicates.ge(900).all() and
+          compute.family_bootstrap_ci_low.le(compute.family_bootstrap_ci_high).all() and
+          compute.family_bootstrap_ci_low.ge(-1).all() and
+          compute.family_bootstrap_ci_high.le(1).all())
 
     c8audit = read("c8_file_audit.csv")
     c8 = read("c8_bbh_leaf_aggregation.csv")

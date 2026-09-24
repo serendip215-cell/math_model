@@ -4,8 +4,8 @@
 
 ## 数据与三个硬边界
 
-1. **开放性：** 主样本要求 C2 权重明确为 Yes 且许可证在预设宽松集合中。缺失权重证据不视为开放。预训练、后训练分层；合并模型不参与主分解。
-2. **跨表连接：** C1/C4 只接受唯一名称归一化候选、参数量接近、发布日期可核、语言领域、Confident/Likely 且权重信息无冲突的连接。该表仅是非随机子样本。
+1. **开放性：** 主样本要求 C2 权重明确为 Yes 且许可证在预设宽松集合中。这是可复算的操作性筛选，不能替代法律上的开源认证或证明提交当日已经开放。缺失权重证据不视为开放。预训练、后训练分层；合并模型不参与主分解。
+2. **跨表连接：** C1/C4 只接受唯一 C4 名称、可支持的来源身份、参数量接近、发布日期可核、语言领域、Confident/Likely 且权重信息无冲突的连接。C4 给出 Hugging Face 开发者 ID 时须与 C1 命名空间一致；未给出 ID 时，同名候选在 C1 侧也须唯一。该表仅是非随机子样本，规则通过不等于人工逐项核验。
 3. **Loss 桥接和未来：** C6 高可比只有同一家族的 7 个 Pythia 点；C1 可比评分截至 2025-03，不能把问题三 Loss 换算成高分前沿，也没有 12/24 个月同协议回测。
 
 ### 样本流失
@@ -20,7 +20,7 @@
 | strict pretrained | 42 | 42 | 13 |
 | strict posttrained | 141 | 141 | 17 |
 
-C1/C4 名称候选 109 行，规则接受 93 行，严格开放预训练且算力可用 30 行。候选和接受均不等于人工逐项核验。
+C1/C4 名称候选 109 行，规则接受 88 行，严格开放预训练且算力可用 29 行。候选和接受均不等于人工逐项核验。
 
 ### C8 逐任务核算
 
@@ -28,19 +28,27 @@ C1/C4 名称候选 109 行，规则接受 93 行，严格开放预训练且算�
 
 ## 规模、时间残差与验证
 
-模型将六任务均分映射到 logit 空间，拟合 log10 参数量与提交时间的 Ridge；超参数在训练期按模型家族 GroupKFold 选择。2025-01 至 03 月留作时间留出，比较仅规模、规模加时间与训练均值。时间系数吸收未观测架构、数据、后训练和选择变化，不能解释为纯技术进步。
+模型将六任务均分映射到 logit 空间，拟合 log10 参数量与提交时间的 Ridge；超参数在训练期按模型家族 GroupKFold 选择。2025-01 至 03 月留作时间留出，比较仅规模、规模加时间与训练均值。除按记录计算 RMSE，还按家族等权平均各家族均方误差后开方，避免提交数多的家族支配验证。时间系数吸收未观测架构、数据、后训练和选择变化，不能解释为纯技术进步。
 
-| stratum | variant | n | families | train_n | future_holdout_n | future_holdout_rmse | future_holdout_bias | status |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| strict_pretrained | N_only | 42 | 13 | 37 | 5 | 11.371 | -7.4973 | fit |
-| strict_pretrained | N_plus_time | 42 | 13 | 37 | 5 | 8.001 | -1.3651 | fit |
-| strict_pretrained | training_mean | 42 | 13 | 37 | 5 | 12.544 | -5.2019 | baseline |
-| strict_posttrained | N_only | 141 | 17 | 74 | 67 | 8.8211 | -4.0436 | fit |
-| strict_posttrained | N_plus_time | 141 | 17 | 74 | 67 | 10.964 | 5.8357 | fit |
-| strict_posttrained | training_mean | 141 | 17 | 74 | 67 | 9.7967 | -0.20245 | baseline |
-| license_only_pretrained | N_only | 108 | 28 | 70 | 38 | 3.5396 | -1.2096 | fit |
-| license_only_pretrained | N_plus_time | 108 | 28 | 70 | 38 | 2.9849 | -0.091865 | fit |
-| license_only_pretrained | training_mean | 108 | 28 | 70 | 38 | 5.8979 | 2.4236 | baseline |
+| stratum | variant | n | families | train_n | future_holdout_n | future_holdout_families | future_holdout_rmse | future_holdout_family_balanced_rmse | future_holdout_bias | status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| strict_pretrained | N_only | 42 | 13 | 37 | 5 | 4 | 11.371 | 12.686 | -7.4973 | fit |
+| strict_pretrained | N_plus_time | 42 | 13 | 37 | 5 | 4 | 8.001 | 8.2568 | -1.3651 | fit |
+| strict_pretrained | training_mean | 42 | 13 | 37 | 5 | 4 | 12.544 | 13.531 | -5.2019 | baseline |
+| strict_posttrained | N_only | 141 | 17 | 74 | 67 | 6 | 8.8211 | 8.0189 | -4.0436 | fit |
+| strict_posttrained | N_plus_time | 141 | 17 | 74 | 67 | 6 | 10.964 | 11.877 | 5.8357 | fit |
+| strict_posttrained | training_mean | 141 | 17 | 74 | 67 | 6 | 9.7967 | 8.901 | -0.20245 | baseline |
+| license_only_pretrained | N_only | 108 | 28 | 70 | 38 | 7 | 3.5396 | 4.6197 | -1.2096 | fit |
+| license_only_pretrained | N_plus_time | 108 | 28 | 70 | 38 | 7 | 2.9849 | 4.6856 | -0.091865 | fit |
+| license_only_pretrained | training_mean | 108 | 28 | 70 | 38 | 7 | 5.8979 | 6.0041 | 2.4236 | baseline |
+
+两模型在相同留出家族上的家族均衡 RMSE 差（含时间减仅规模）如下；重抽样单位为家族，区间不能验证 12/24 个月外推。
+
+| stratum | holdout_families | delta_family_balanced_rmse_time_minus_N | family_bootstrap_ci_low | family_bootstrap_ci_high | interpretation |
+| --- | --- | --- | --- | --- | --- |
+| license_only_pretrained | 7 | 0.065915 | -1.0575 | 1.261 | descriptive_model_comparison_not_independent_long_horizon_test |
+| strict_posttrained | 6 | 3.8577 | -1.0115 | 7.7082 | descriptive_model_comparison_not_independent_long_horizon_test |
+| strict_pretrained | 4 | -4.4287 | -7.0748 | 0.33283 | descriptive_model_comparison_not_independent_long_horizon_test |
 
 ### 共同规模支持
 
@@ -105,12 +113,12 @@ C1/C4 名称候选 109 行，规则接受 93 行，严格开放预训练且算�
 
 ## 算力审计与观测前沿
 
-C4 连接子样本只报告关联；C4 独立资源趋势不与 Benchmark 行序拼接。每月观测最大值和 90% 分位随样本量列出；稀疏月份的分位数尤其不稳定。
+C4 连接子样本只报告关联与按家族重抽样的 Spearman 区间，不使用把相关模型当独立样本的普通 p 值；区间也不消除年代、架构等混杂。C4 独立资源趋势不与 Benchmark 行序拼接。每月观测最大值和 90% 分位随样本量列出；稀疏月份的分位数尤其不稳定。
 
-| variable | n | families | spearman | p_uncorrected | min | max | status |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| log_compute | 30 | 10 | 0.84535 | 4.1482e-09 | 20.522 | 24.545 | association_only_nonrepresentative_linked_subset |
-| logN | 30 | 10 | 0.60454 | 0.00040269 | -0.30627 | 1.759 | association_only_nonrepresentative_linked_subset |
+| variable | n | families | spearman | family_bootstrap_ci_low | family_bootstrap_ci_high | family_bootstrap_valid_replicates | min | max | status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| log_compute | 29 | 10 | 0.82892 | 0.3594 | 0.96154 | 1000 | 20.522 | 24.545 | association_only_nonrepresentative_linked_subset |
+| logN | 29 | 10 | 0.58597 | 0.28912 | 0.78488 | 1000 | -0.30627 | 1.759 | association_only_nonrepresentative_linked_subset |
 
 | type_group | month | models | families | max_score | q90_score |
 | --- | --- | --- | --- | --- | --- |

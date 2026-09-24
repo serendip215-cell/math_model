@@ -38,12 +38,16 @@ CUTOFF = pd.Timestamp("2025-03-13")
 START = pd.Timestamp("2024-06-08")
 EARLY_END = pd.Timestamp("2024-08-31")
 LATE_START = pd.Timestamp("2025-01-01")
-RNG = np.random.default_rng(20260925)
 
 
 def save(frame: pd.DataFrame, filename: str) -> pd.DataFrame:
     frame.to_csv(RESULTS / filename, index=False, encoding="utf-8-sig")
     return frame
+
+
+def save_figure(fig: plt.Figure, filename: str) -> None:
+    fig.savefig(FIGURES / filename, metadata={"CreationDate": None})
+    plt.close(fig)
 
 
 def tbl(frame: pd.DataFrame, digits: int = 5) -> str:
@@ -137,13 +141,23 @@ def prepare_panel(c2: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
 
 def link_c4(panel: pd.DataFrame, c4: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
     left = panel.copy(); left["match_key"] = left.Model.map(slug)
+    left_key_counts = left.match_key.value_counts()
     right = c4.copy(); right["match_key"] = right.Model.map(slug)
     counts = right.match_key.value_counts()
     right = right[["match_key", "Model", "Parameters", "Training compute (FLOP)",
                    "Training dataset size (total)", "Publication date", "Confidence",
-                   "Domain", "Open model weights?"]]
+                   "Domain", "Open model weights?", "Hugging Face developer id"]]
     merged = left.merge(right, on="match_key", how="inner", suffixes=("_C1", "_C4"))
     merged["C4_key_unique"] = merged.match_key.map(counts).eq(1)
+    merged["C1_key_unique"] = merged.match_key.map(left_key_counts).eq(1)
+    developer = merged["Hugging Face developer id"].fillna("").astype(str).str.strip().str.lower()
+    namespace = merged.namespace.fillna("").astype(str).str.strip().str.lower()
+    merged["developer_id_available"] = developer.ne("")
+    merged["developer_id_matches"] = developer.eq(namespace) & merged.developer_id_available
+    # When C4 names an official repository owner, reject community reuploads.
+    # Without an owner field, a shared normalized model name is ambiguous.
+    merged["source_identity_supported"] = np.where(
+        merged.developer_id_available, merged.developer_id_matches, merged.C1_key_unique)
     merged["N_ratio"] = merged.N_B * 1e9 / pd.to_numeric(merged.Parameters, errors="coerce")
     merged["N_consistent"] = merged.N_ratio.between(.7, 1.3)
     published = pd.to_datetime(merged["Publication date"], errors="coerce")
@@ -152,7 +166,8 @@ def link_c4(panel: pd.DataFrame, c4: pd.DataFrame) -> tuple[pd.DataFrame, pd.Dat
     merged["language_domain"] = merged.Domain.fillna("").str.contains("Language", case=False)
     merged["source_confident"] = merged.Confidence.isin(["Confident", "Likely"])
     merged["weight_agreement"] = ~merged.strict_open | merged["Open model weights?"].eq("Yes")
-    merged["accepted_link"] = (merged.C4_key_unique & merged.N_consistent &
+    merged["accepted_link"] = (merged.C4_key_unique & merged.source_identity_supported &
+                               merged.N_consistent &
                                merged.date_consistent & merged.language_domain &
                                merged.source_confident & merged.weight_agreement)
     merged["usable_compute"] = (merged.accepted_link & merged.strict_open &
@@ -160,7 +175,9 @@ def link_c4(panel: pd.DataFrame, c4: pd.DataFrame) -> tuple[pd.DataFrame, pd.Dat
                                  pd.to_numeric(merged["Training compute (FLOP)"], errors="coerce").gt(0))
     audit_cols = ["Model_C1", "Model_C4", "match_key", "N_B", "Parameters", "N_ratio",
                   "submission", "Publication date", "Confidence", "Domain", "Open model weights?",
-                  "strict_open", "type_group", "C4_key_unique", "N_consistent",
+                  "strict_open", "type_group", "Hugging Face developer id",
+                  "C4_key_unique", "C1_key_unique", "developer_id_available",
+                  "developer_id_matches", "source_identity_supported", "N_consistent",
                   "date_consistent", "language_domain", "source_confident",
                   "weight_agreement", "accepted_link", "usable_compute",
                   "Training compute (FLOP)", "Training dataset size (total)"]
@@ -302,6 +319,7 @@ def choose_alpha(train: pd.DataFrame, use_time: bool) -> tuple[float, pd.DataFra
 def fit_leaderboard(panel: pd.DataFrame) -> tuple[dict, pd.DataFrame]:
     summary = []
     cvs = []
+    holdout_rows = []
     fits = {}
     for stratum, filt in [("strict_pretrained", panel.strict_open & panel.type_group.eq("pretrained")),
                           ("strict_posttrained", panel.strict_open & panel.type_group.eq("posttrained")),
@@ -325,29 +343,74 @@ def fit_leaderboard(panel: pd.DataFrame) -> tuple[dict, pd.DataFrame]:
             fitted_train = score_fit(train, use_time, alpha)
             pred = score_predict(fitted_train, test)
             predictions[variant] = pred
+            holdout_rows.extend({"stratum": stratum, "variant": variant,
+                                 "Model": model, "family": fam, "observed": float(obs),
+                                 "predicted": float(pr)} for model, fam, obs, pr in zip(
+                                 test.Model, test.family, test.Y, pred))
+            by_family = pd.DataFrame({"family": test.family.to_numpy(),
+                                      "squared_error": (pred - test.Y.to_numpy()) ** 2})
+            family_rmse = float(np.sqrt(by_family.groupby("family").squared_error.mean().mean()))
             fitted_full = score_fit(sub, use_time, alpha)
             fits[(stratum, variant)] = fitted_full
             summary.append({"stratum": stratum, "variant": variant, "n": len(sub),
                             "families": sub.family.nunique(), "train_n": len(train),
                             "future_holdout_n": len(test), "alpha": alpha,
                             "future_holdout_rmse": float(np.sqrt(np.mean((pred - test.Y) ** 2))),
+                            "future_holdout_family_balanced_rmse": family_rmse,
+                            "future_holdout_families": test.family.nunique(),
                             "future_holdout_mae": float(np.mean(abs(pred - test.Y))),
                             "future_holdout_bias": float(np.mean(pred - test.Y)),
                             "status": "fit"})
         base = np.repeat(train.Y.mean(), len(test))
+        holdout_rows.extend({"stratum": stratum, "variant": "training_mean",
+                             "Model": model, "family": fam, "observed": float(obs),
+                             "predicted": float(pr)} for model, fam, obs, pr in zip(
+                             test.Model, test.family, test.Y, base))
+        base_family = pd.DataFrame({"family": test.family.to_numpy(),
+                                    "squared_error": (base - test.Y.to_numpy()) ** 2})
         summary.append({"stratum": stratum, "variant": "training_mean",
                         "n": len(sub), "families": sub.family.nunique(), "train_n": len(train),
                         "future_holdout_n": len(test),
                         "future_holdout_rmse": float(np.sqrt(np.mean((base - test.Y) ** 2))),
+                        "future_holdout_family_balanced_rmse": float(np.sqrt(
+                            base_family.groupby("family").squared_error.mean().mean())),
+                        "future_holdout_families": test.family.nunique(),
                         "future_holdout_mae": float(np.mean(abs(base - test.Y))),
                         "future_holdout_bias": float(np.mean(base - test.Y)), "status": "baseline"})
     fit_table = save(pd.DataFrame(summary), "model_holdout_metrics.csv")
+    save(pd.DataFrame(holdout_rows), "future_holdout_predictions.csv")
     if cvs: save(pd.concat(cvs, ignore_index=True), "family_group_cv.csv")
     return fits, fit_table
 
 
+def temporal_model_comparison() -> pd.DataFrame:
+    holdout = pd.read_csv(RESULTS / "future_holdout_predictions.csv")
+    rows = []
+    boot_rng = np.random.default_rng(20260926)
+    for stratum, group in holdout.groupby("stratum"):
+        pair = group[group.variant.isin(["N_only", "N_plus_time"])].copy()
+        pair["squared_error"] = (pair.predicted - pair.observed) ** 2
+        fam = pair.groupby(["family", "variant"]).squared_error.mean().unstack()
+        fam = fam.dropna(subset=["N_only", "N_plus_time"])
+        if len(fam) < 2: continue
+        diff = float(np.sqrt(fam.N_plus_time.mean()) - np.sqrt(fam.N_only.mean()))
+        draws = []
+        for _ in range(1000):
+            chosen = boot_rng.choice(len(fam), size=len(fam), replace=True)
+            sampled = fam.iloc[chosen]
+            draws.append(float(np.sqrt(sampled.N_plus_time.mean()) -
+                               np.sqrt(sampled.N_only.mean())))
+        rows.append({"stratum": stratum, "holdout_families": len(fam),
+                     "delta_family_balanced_rmse_time_minus_N": diff,
+                     "family_bootstrap_ci_low": float(np.quantile(draws, .025)),
+                     "family_bootstrap_ci_high": float(np.quantile(draws, .975)),
+                     "interpretation": "descriptive_model_comparison_not_independent_long_horizon_test"})
+    return save(pd.DataFrame(rows), "temporal_model_comparison.csv")
+
+
 def decompose(panel: pd.DataFrame, fits: dict) -> tuple[pd.DataFrame, pd.DataFrame]:
     audits = []; pieces = []; boots = []
+    boot_rng = np.random.default_rng(20260925)
     for stratum, filt in [("strict_pretrained", panel.strict_open & panel.type_group.eq("pretrained")),
                           ("strict_posttrained", panel.strict_open & panel.type_group.eq("posttrained")),
                           ("license_only_pretrained", panel.license_only_unverified &
@@ -391,7 +454,7 @@ def decompose(panel: pd.DataFrame, fits: dict) -> tuple[pd.DataFrame, pd.DataFra
                        "causal_attribution": False})
         families = sub.family.unique()
         for b in range(200):
-            sampled = RNG.choice(families, size=len(families), replace=True)
+            sampled = boot_rng.choice(families, size=len(families), replace=True)
             draw = pd.concat([sub[sub.family.eq(g)] for g in sampled], ignore_index=True)
             ee = draw[pd.to_datetime(draw.submission).le(EARLY_END) & draw.logN.between(lo, hi)]
             ll = draw[pd.to_datetime(draw.submission).ge(LATE_START) & draw.logN.between(lo, hi)]
@@ -428,10 +491,21 @@ def compute_sensitivity(links: pd.DataFrame) -> pd.DataFrame:
         return save(pd.DataFrame([{"status": "too_few_verified_links", "n": len(sub)}]),
                     "linked_compute_sensitivity.csv")
     rows = []
+    boot_rng = np.random.default_rng(20260927)
     for variable in ["log_compute", "logN"]:
         rho = spearmanr(sub[variable], sub.Y)
+        families = sub.family.unique()
+        draws = []
+        for _ in range(1000):
+            sampled = boot_rng.choice(families, size=len(families), replace=True)
+            draw = pd.concat([sub[sub.family.eq(g)] for g in sampled], ignore_index=True)
+            statistic = spearmanr(draw[variable], draw.Y).statistic
+            if np.isfinite(statistic): draws.append(float(statistic))
         rows.append({"variable": variable, "n": len(sub), "families": sub.family.nunique(),
-                     "spearman": float(rho.statistic), "p_uncorrected": float(rho.pvalue),
+                     "spearman": float(rho.statistic),
+                     "family_bootstrap_ci_low": float(np.quantile(draws, .025)) if draws else np.nan,
+                     "family_bootstrap_ci_high": float(np.quantile(draws, .975)) if draws else np.nan,
+                     "family_bootstrap_valid_replicates": len(draws),
                      "min": float(sub[variable].min()), "max": float(sub[variable].max()),
                      "status": "association_only_nonrepresentative_linked_subset"})
     return save(pd.DataFrame(rows), "linked_compute_sensitivity.csv")
@@ -450,9 +524,10 @@ def conditional_scenarios(panel: pd.DataFrame, fits: dict, holdout: pd.DataFrame
     rate = float(np.polyfit(hist.month_index, np.log10(hist.q90_N_B), 1)[0])
     anchor = float(np.log10(hist.tail(3).q90_N_B.median()))
     hm = holdout[(holdout.stratum == stratum) & holdout.variant.isin(["N_only", "N_plus_time"])]
-    temporal_gain = (len(hm) == 2 and hm.loc[hm.variant.eq("N_plus_time"),
-                    "future_holdout_rmse"].iloc[0] < hm.loc[hm.variant.eq("N_only"),
-                    "future_holdout_rmse"].iloc[0])
+    temporal_gain = (len(hm) == 2 and all(
+        hm.loc[hm.variant.eq("N_plus_time"), metric].iloc[0] <
+        hm.loc[hm.variant.eq("N_only"), metric].iloc[0]
+        for metric in ["future_holdout_rmse", "future_holdout_family_balanced_rmse"]))
     # A negative empirical size trend does not identify a positive growth/slowdown
     # path. A time term that loses on future holdout cannot support extrapolation.
     identified = rate > 0 and temporal_gain and len(hist) >= 6
@@ -518,7 +593,7 @@ def draw_figures(panel: pd.DataFrame, flow: pd.DataFrame, monthly: pd.DataFrame,
     ax.barh(part.step.iloc[::-1], part.rows.iloc[::-1], color="#376b9a")
     ax.set_xlabel("Rows retained")
     ax.set_title("Leaderboard sample audit")
-    fig.savefig(FIGURES / "q4_sample_attrition.pdf"); plt.close(fig)
+    save_figure(fig, "q4_sample_attrition.pdf")
 
     strict = panel[panel.strict_open & panel.type_group.isin(["pretrained", "posttrained"])]
     fig, ax = plt.subplots(figsize=(7, 4))
@@ -527,7 +602,7 @@ def draw_figures(panel: pd.DataFrame, flow: pd.DataFrame, monthly: pd.DataFrame,
         ax.scatter(subset.logN, subset.Y, s=13, alpha=.62, label=f"{group} (n={len(subset)})", color=color)
     ax.set(xlabel="log10(parameters, B)", ylabel="Six-task mean (%)",
            title="Strict open sample: parameter and score support")
-    ax.legend(); fig.savefig(FIGURES / "q4_scale_score_support.pdf"); plt.close(fig)
+    ax.legend(); save_figure(fig, "q4_scale_score_support.pdf")
 
     fig, ax = plt.subplots(figsize=(8, 4))
     for group, style in [("pretrained", "o-"), ("posttrained", "s-")]:
@@ -539,7 +614,7 @@ def draw_figures(panel: pd.DataFrame, flow: pd.DataFrame, monthly: pd.DataFrame,
     ax.set(xlabel="Submission month", ylabel="Observed 90th percentile score (%)",
            title="Observed frontier; labels are monthly model counts")
     ax.legend(); fig.autofmt_xdate()
-    fig.savefig(FIGURES / "q4_observed_frontier.pdf"); plt.close(fig)
+    save_figure(fig, "q4_observed_frontier.pdf")
 
     if len(decomposition):
         boot_file = RESULTS / "decomposition_family_bootstrap.csv"
@@ -562,7 +637,7 @@ def draw_figures(panel: pd.DataFrame, flow: pd.DataFrame, monthly: pd.DataFrame,
         ax.set_ylabel("Predicted score change (points)")
         ax.set_title("Exploratory decomposition; 2.5-97.5% family-bootstrap intervals")
         ax.legend(fontsize=8)
-        fig.savefig(FIGURES / "q4_conditional_decomposition.pdf"); plt.close(fig)
+        save_figure(fig, "q4_conditional_decomposition.pdf")
 
     fig, ax = plt.subplots(figsize=(5.5, 4))
     ax.scatter(bridge_loo.Val_Loss, bridge_loo.LB_Average, label="Pythia, high comparability")
@@ -570,7 +645,7 @@ def draw_figures(panel: pd.DataFrame, flow: pd.DataFrame, monthly: pd.DataFrame,
     ax.plot(order.Val_Loss, order.loo_monotone_prediction, "--", label="LOO monotone predictions")
     ax.set(xlabel="Validation loss (same source)", ylabel="Leaderboard mean (%)",
            title="C6 local bridge: 7 Pythia observations")
-    ax.legend(fontsize=8); fig.savefig(FIGURES / "q4_loss_benchmark_bridge.pdf"); plt.close(fig)
+    ax.legend(fontsize=8); save_figure(fig, "q4_loss_benchmark_bridge.pdf")
 
     common = c8_joined[c8_joined.common_task_set]
     if len(common):
@@ -578,7 +653,7 @@ def draw_figures(panel: pd.DataFrame, flow: pd.DataFrame, monthly: pd.DataFrame,
         ax.scatter(common.bbh_leaf_macro_raw_pct, common.BBH, s=10, alpha=.5)
         ax.set(xlabel="C8 leaf macro raw accuracy (%)", ylabel="C1 BBH reported score",
                title="Different metric scales; do not assert equality")
-        fig.savefig(FIGURES / "q4_c8_c1_scale_audit.pdf"); plt.close(fig)
+        save_figure(fig, "q4_c8_c1_scale_audit.pdf")
 
     # No long-horizon curve when growth and time extrapolation are unidentified.
 
@@ -587,9 +662,11 @@ def write_report(flow: pd.DataFrame, links: pd.DataFrame, usable: pd.DataFrame,
                  c8: dict, bridge_info: dict, fit_metrics: pd.DataFrame,
                  support: pd.DataFrame, decomp: pd.DataFrame, monthly: pd.DataFrame,
                  compute: pd.DataFrame, scenarios: pd.DataFrame,
-                 tasks: pd.DataFrame, task_models: pd.DataFrame) -> None:
+                 tasks: pd.DataFrame, task_models: pd.DataFrame,
+                 temporal_comparison: pd.DataFrame) -> None:
     metric_cols = ["stratum", "variant", "n", "families", "train_n",
-                   "future_holdout_n", "future_holdout_rmse", "future_holdout_bias", "status"]
+                   "future_holdout_n", "future_holdout_families", "future_holdout_rmse",
+                   "future_holdout_family_balanced_rmse", "future_holdout_bias", "status"]
     metrics_view = fit_metrics.reindex(columns=metric_cols)
     scenario_view = scenarios.reindex(columns=["horizon_months", "monthly_q90_log10N_trend",
         "positive_growth_established", "time_model_improves_future_holdout",
@@ -597,16 +674,18 @@ def write_report(flow: pd.DataFrame, links: pd.DataFrame, usable: pd.DataFrame,
     lines = ["# 问题四结果：开放模型能力变化与条件情景", "",
              "> 计算日期基于附件快照。预测原点是同协议 C1 的 2025-03-13，12/24 个月情景没有同长度回测，不能解读为当前实测前沿或可信外推预测。",
              "", "## 数据与三个硬边界", "",
-             "1. **开放性：** 主样本要求 C2 权重明确为 Yes 且许可证在预设宽松集合中。缺失权重证据不视为开放。预训练、后训练分层；合并模型不参与主分解。",
-             "2. **跨表连接：** C1/C4 只接受唯一名称归一化候选、参数量接近、发布日期可核、语言领域、Confident/Likely 且权重信息无冲突的连接。该表仅是非随机子样本。",
+             "1. **开放性：** 主样本要求 C2 权重明确为 Yes 且许可证在预设宽松集合中。这是可复算的操作性筛选，不能替代法律上的开源认证或证明提交当日已经开放。缺失权重证据不视为开放。预训练、后训练分层；合并模型不参与主分解。",
+             "2. **跨表连接：** C1/C4 只接受唯一 C4 名称、可支持的来源身份、参数量接近、发布日期可核、语言领域、Confident/Likely 且权重信息无冲突的连接。C4 给出 Hugging Face 开发者 ID 时须与 C1 命名空间一致；未给出 ID 时，同名候选在 C1 侧也须唯一。该表仅是非随机子样本，规则通过不等于人工逐项核验。",
              "3. **Loss 桥接和未来：** C6 高可比只有同一家族的 7 个 Pythia 点；C1 可比评分截至 2025-03，不能把问题三 Loss 换算成高分前沿，也没有 12/24 个月同协议回测。",
              "", "### 样本流失", "", tbl(flow), "",
              f"C1/C4 名称候选 {len(links)} 行，规则接受 {int(links.accepted_link.sum())} 行，严格开放预训练且算力可用 {len(usable)} 行。候选和接受均不等于人工逐项核验。",
              "", "### C8 逐任务核算", "",
              f"扫描 {c8['json_files']} 个 JSON；解析 {c8['parsed']} 个；模型去重后 {c8['models_latest']} 个；与 C1 连接 {c8['joined_to_C1']} 个，其中同一叶任务集合 {c8['common_task_set_joined']} 个。C8 叶任务宏平均与 C1 BBH **数值标尺未证实相同**，因此只做覆盖与秩序审计，不强行回代相等。重复版本以记录时间及文件名排序取末份。",
              "", "## 规模、时间残差与验证", "",
-             "模型将六任务均分映射到 logit 空间，拟合 log10 参数量与提交时间的 Ridge；超参数在训练期按模型家族 GroupKFold 选择。2025-01 至 03 月留作时间留出，比较仅规模、规模加时间与训练均值。时间系数吸收未观测架构、数据、后训练和选择变化，不能解释为纯技术进步。",
-             "", tbl(metrics_view), "", "### 共同规模支持", "", tbl(support), ""]
+             "模型将六任务均分映射到 logit 空间，拟合 log10 参数量与提交时间的 Ridge；超参数在训练期按模型家族 GroupKFold 选择。2025-01 至 03 月留作时间留出，比较仅规模、规模加时间与训练均值。除按记录计算 RMSE，还按家族等权平均各家族均方误差后开方，避免提交数多的家族支配验证。时间系数吸收未观测架构、数据、后训练和选择变化，不能解释为纯技术进步。",
+             "", tbl(metrics_view), "",
+             "两模型在相同留出家族上的家族均衡 RMSE 差（含时间减仅规模）如下；重抽样单位为家族，区间不能验证 12/24 个月外推。",
+             "", tbl(temporal_comparison), "", "### 共同规模支持", "", tbl(support), ""]
     if len(decomp):
         lines += ["只有支持审计通过的层才执行早期（截至 2024-08）与晚期（2025-01 至 03）两因素 Shapley 分解。分解数值是模型拟合变化，与实测变化另列；家族聚簇重抽样输出在 `decomposition_family_bootstrap.csv`。未通过者不报贡献百分比。",
                   "", tbl(decomp), ""]
@@ -623,7 +702,7 @@ def write_report(flow: pd.DataFrame, links: pd.DataFrame, usable: pd.DataFrame,
               "", tbl(task_models[["task", "variant", "future_holdout_n",
                                    "future_holdout_rmse", "future_holdout_bias"]]), "",
               "## 算力审计与观测前沿", "",
-              "C4 连接子样本只报告关联；C4 独立资源趋势不与 Benchmark 行序拼接。每月观测最大值和 90% 分位随样本量列出；稀疏月份的分位数尤其不稳定。",
+              "C4 连接子样本只报告关联与按家族重抽样的 Spearman 区间，不使用把相关模型当独立样本的普通 p 值；区间也不消除年代、架构等混杂。C4 独立资源趋势不与 Benchmark 行序拼接。每月观测最大值和 90% 分位随样本量列出；稀疏月份的分位数尤其不稳定。",
               "", tbl(compute), "", tbl(monthly[["type_group", "month", "models", "families", "max_score", "q90_score"]]), "",
               "## Loss 桥接", "",
               f"C6 高可比 n={bridge_info['high_n']}、独立家族 1。Loss 范围 {bridge_info['high_loss_range']}，得分范围 {bridge_info['high_score_range']}。逐点留一单调映射 RMSE={bridge_info['loo_monotone_rmse']:.4f}，常数基线 RMSE={bridge_info['loo_constant_rmse']:.4f}。这个留一不检验跨家族泛化；前沿数值桥接未识别。",
@@ -643,6 +722,7 @@ def main() -> None:
     c8_joined, c8 = process_c8(panel)
     bridge_loo, bridge_info = bridge(data["C6"])
     fits, metrics = fit_leaderboard(panel)
+    temporal_comparison = temporal_model_comparison()
     support, decomp = decompose(panel, fits)
     monthly = monthly_frontier(panel)
     compute = compute_sensitivity(usable)
@@ -651,7 +731,8 @@ def main() -> None:
     task_models = task_model_validation(panel)
     draw_figures(panel, flow, monthly, decomp, bridge_loo, c8_joined, scenarios)
     write_report(flow, links, usable, c8, bridge_info, metrics,
-                 support, decomp, monthly, compute, scenarios, tasks, task_models)
+                 support, decomp, monthly, compute, scenarios, tasks, task_models,
+                 temporal_comparison)
     print(json.dumps({"strict_pretrained": int((panel.strict_open &
           panel.type_group.eq("pretrained")).sum()), "strict_posttrained": int((panel.strict_open &
           panel.type_group.eq("posttrained")).sum()), "C4_usable_compute": len(usable),

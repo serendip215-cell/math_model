@@ -1,6 +1,6 @@
 # 问题四独立验收
 
-通过 24/24 项。
+通过 31/31 项。
 
 | 检查 | 结果 | 说明 |
 | --- | --- | --- |
@@ -12,8 +12,15 @@
 | Pretrained late count | 通过 |  |
 | Flow raw row count | 通过 |  |
 | Every accepted link passes all rules | 通过 |  |
+| Accepted C4 records are one-to-one | 通过 |  |
+| Known developer id agrees with repository namespace | 通过 |  |
 | Compute subset has verified positive compute | 通过 |  |
 | Compute subset only strict pretrained | 通过 |  |
+| Time holdout row RMSE independently recomputed | 通过 |  |
+| Time holdout family-balanced RMSE independently recomputed | 通过 |  |
+| Temporal model comparison agrees with saved holdout errors | 通过 |  |
+| Temporal comparison bootstrap bounds valid | 通过 |  |
+| Compute association bootstrap intervals valid | 通过 |  |
 | C8 file count | 通过 |  |
 | C8 unique latest model | 通过 |  |
 | C8 parsed leaf average independently | 通过 |  |
