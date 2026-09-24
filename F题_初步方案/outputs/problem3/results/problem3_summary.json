@@ -27,6 +27,8 @@
   "max_optimized_minus_grid": -9.970283265658964e-09,
   "max_optimized_minus_global": -3.5496050543315505e-12,
   "max_interior_kkt_gap": 7.223859785952708e-08,
+  "max_one_sided_kkt_violation": 3.6119300234367337e-08,
+  "max_discrete_quality_penalty": 0.007273637282665835,
   "conditional_bootstrap_replicates": 80,
   "transitions": 13,
   "no_QA_to_QB_calibration": true,

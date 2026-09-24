@@ -31,6 +31,11 @@ def main() -> None:
     grid = pd.read_csv(RESULTS / "independent_grid_checks.csv")
     global_check = pd.read_csv(RESULTS / "global_search_checks.csv")
     kkt = pd.read_csv(RESULTS / "marginal_kkt_checks.csv")
+    recipe_contrast = pd.read_csv(RESULTS / "p1_recipe_contrast.csv")
+    recipe_draws = pd.read_csv(RESULTS / "p1_recipe_contrast_bootstrap.csv")
+    quality_grid = pd.read_csv(RESULTS / "discrete_quality_grid.csv")
+    quality_summary = pd.read_csv(RESULTS / "discrete_quality_summary.csv")
+    floor = pd.read_csv(RESULTS / "support_floor_sensitivity.csv")
     structure = pd.read_csv(RESULTS / "m1_structure_sensitivity.csv")
     manifest = pd.read_csv(RESULTS / "figure_manifest.csv")
     recipe = pd.read_csv(RESULTS / "fixed_recipe.csv")
@@ -100,6 +105,34 @@ def main() -> None:
     kkt_comparable = kkt.interior_relative_gap.dropna()
     add("内点边际条件", len(kkt_comparable) >= 3 and kkt_comparable.max() < 1e-3,
         f"{len(kkt_comparable)} 个可比较主解的最大相对差={kkt_comparable.max():.3e}")
+    add("角点单侧 KKT 条件", len(kkt) == len(main) and
+        kkt[["N_one_sided_violation", "D_one_sided_violation", "Q_one_sided_violation"]]
+        .notna().all().all() and kkt.max_one_sided_violation.max() < 1e-4,
+        f"12 个主解最大单侧标准化违反量={kkt.max_one_sided_violation.max():.3e}")
+    p1_model = np.load(P1 / "mixture" / "results" / "selected_response_surface.npz", allow_pickle=False)
+    p1_recipe = pd.read_csv(P1 / "mixture" / "results" / "recommended_mixture.csv")
+    shares = p1_recipe.set_index("domain").loc[p1_model["domains"]]
+    z = np.log(np.maximum(shares[["recommended_share", "training_mean_share"]].to_numpy().T,
+                          1e-6)) @ p1_model["basis"].T
+    feature = np.prod(z[:, None, :] ** p1_model["powers"][None, :, :], axis=2)
+    direct_contrast = float((feature[0] - feature[1]) @ p1_model["coefficients"].mean(axis=0))
+    add("第一问配比差值复算与证据边界", len(recipe_contrast) == 1 and len(recipe_draws) == 500 and
+        abs(direct_contrast - recipe_contrast.A4_1m_fitted_macro_loss_difference.iloc[0]) < 1e-10 and
+        not bool(recipe_contrast.transferable_to_B6_loss.iloc[0]),
+        f"A4 1M 推荐－均值预测差={direct_contrast:.6f}；不能加到 B6 Loss")
+    b6_levels = set(pd.read_csv(DATA / "B_scaling_laws" / "supplementary_NQ_experiment.csv").Q_score)
+    add("B6 离散质量重优化", len(quality_summary) == len(main) and
+        set(quality_grid.Q_B_observed_level).issubset(b6_levels) and
+        set(quality_summary.best_observed_Q_B).issubset(b6_levels) and
+        (quality_summary.snap_loss_penalty >= -1e-7).all(),
+        f"最大离散化模型 Loss 增量={quality_summary.snap_loss_penalty.max():.6f}")
+    d_floor = floor[floor.floor_type == "D_min_B"].sort_values("floor_value_B")
+    n_floor = floor[floor.floor_type == "N_min_B"].sort_values("floor_value_B")
+    add("低预算下界敏感性", len(d_floor) == 4 and len(n_floor) == 3 and
+        (d_floor.status == "feasible").all() and (n_floor.status == "feasible").all() and
+        (d_floor.predicted_loss.diff().dropna() >= -1e-7).all() and
+        (n_floor.predicted_loss.diff().dropna() >= -1e-7).all(),
+        "下界只向观测支持域内部收紧，最优 Loss 未反常下降")
 
     infeasible = contexts[contexts.status == "infeasible_lower_support"]
     min_costs = [sum(cost_21(data.nlo, data.dlo, row.Q0_B, row.Q0_B,
@@ -144,7 +177,7 @@ def main() -> None:
 
 ## 解释范围
 
-预算配置来自 B1 真实训练轨迹的规模响应与 B6 半合成质量响应；质量成本由题目附录 B 假设。第一问推荐配比仅列为外生情景，未进入第三问目标式，不能声称求得配比联合最优；较大尺度下是否仍最优也未验证。$Q_A$ 与 $Q_B$ 未校准。C7 的最大位置容量只是上下文假设情景，不是实际训练长度。高预算未用余额反映数据支持域饱和。Bootstrap 仅是当前模型内参数重抽样，不覆盖真实成本或跨数据源协议误差。
+预算配置来自 B1 真实训练轨迹的规模响应与 B6 半合成质量响应；质量成本由题目附录 B 假设。第一问推荐配比仅列为外生情景，未进入第三问目标式，不能声称求得配比联合最优；A4 1M 配比差值不能加到 B6 Loss，较大尺度下是否仍最优也未验证。$Q_A$ 与 $Q_B$ 未校准。C7 的最大位置容量只是上下文假设情景，不是实际训练长度。高预算未用余额反映数据支持域饱和。连续 $Q_B$ 的离散档位审计及低预算边界敏感性见结果表。Bootstrap 仅是当前模型内参数重抽样，不覆盖真实成本或跨数据源协议误差。
 """, encoding="utf-8")
     print(json.dumps({"passed": passed, "checks": len(result),
                       "failed": result.loc[~result.passed, "check"].tolist()}, ensure_ascii=False))

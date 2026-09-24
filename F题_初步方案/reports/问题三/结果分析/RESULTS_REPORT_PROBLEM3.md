@@ -77,6 +77,38 @@
 
 其他预算的 $Q_{B,0}$ 扫描见 `quality_baseline_sensitivity.csv`。低预算下最优质量对基线假设敏感，故不把单一 $Q_{B,0}$ 的选择写成确定政策。
 
+### 第一问配比差值与第三问不可识别性
+
+利用第一问保存的 1M 二次 ILR 响应面，在**同一 A4 协议**下比较推荐质心与训练均值，所得差值及按 A4 配比行重抽样的区间如下（差值为推荐减训练均值，负值代表该模型预测 Loss 较低）：
+
+| contrast | A4_1m_fitted_macro_loss_difference | bootstrap_2p5 | bootstrap_50 | bootstrap_97p5 | test_1m_macro_rmse | abs_difference_over_test_rmse | transferable_to_B6_loss |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| recommended_minus_training_mean | -0.00622763 | -0.0171456 | -0.00684838 | 0.00315765 | 0.23195 | 0.026849 | False |
+
+这是第一问 1M 模型的配比对比，不是第三问的绝对 Loss 增益；A4 与 B6 缺少共同实验及标尺校准，无法把该差值加到 exp_both 目标式，也无法声称推荐配比在本问最优。自举区间仅反映 A4 拟合抽样，不覆盖跨协议和大尺度转移误差。500 个重抽样值见 `p1_recipe_contrast_bootstrap.csv`。
+
+### 连续质量插值与低预算边界敏感性
+
+B6 只有离散 $Q_B$ 水平。将 $Q_B$ 限定为 B6 实际列出的水平、同时重新优化 $N,D$ 后，$10^{19}$ FLOPs 的对照如下；`snap_loss_penalty` 是离散方案相对连续插值最优解的模型预测 Loss 增量：
+
+| budget_FLOPs | quality_cost | continuous_Q_star_B | best_observed_Q_B | continuous_loss | observed_grid_loss | snap_loss_penalty |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1e+19 | exponential | 0.557444 | 0.6 | 3.30635 | 3.31159 | 0.00523729 |
+| 1e+19 | power | 0.456593 | 0.4 | 3.33832 | 3.34559 | 0.00727364 |
+| 1e+19 | logarithmic | 0.4 | 0.4 | 3.34559 | 3.34559 | 0 |
+
+全部预算及成本式见 `discrete_quality_grid.csv`、`discrete_quality_summary.csv`。这只检验连续插值对方案的影响，不表示实际能买到精确的质量档位。低预算下的 $D_{min}$ 与 $N_{min}$ 为支持域边界；把下界**向内收紧**后的情景见下表。向外放宽低于观测最小值需要外推，本报告不据此推荐新最优解。
+
+| floor_type | floor_value_B | status | N_star_B | D_star_B | Q_star_B | predicted_loss |
+| --- | --- | --- | --- | --- | --- | --- |
+| D_min_B | 10 | feasible | 0.128982 | 10 | 0.557444 | 3.30635 |
+| D_min_B | 12 | feasible | 0.110936 | 12 | 0.524389 | 3.33165 |
+| D_min_B | 15 | feasible | 0.0925462 | 15 | 0.485133 | 3.36724 |
+| D_min_B | 20 | feasible | 0.0737667 | 20 | 0.436739 | 3.41988 |
+| N_min_B | 0.070542 | feasible | 0.128982 | 10 | 0.557444 | 3.30635 |
+| N_min_B | 0.1 | feasible | 0.128982 | 10 | 0.557444 | 3.30635 |
+| N_min_B | 0.12 | feasible | 0.128982 | 10 | 0.557444 | 3.30635 |
+
 ## 3. 上下文与结构性转移
 
 题面 $C_{train}=6ND$、$C_{attn}=\eta NDL_{ctx}$ 给出临界值 $L_{ctx}^{crit}=6/\eta=30,000$。C7 的 `max_position_embeddings` 有 [2048, 4096, 8192, 32768, 131072] 五种**最大位置容量**，其中 32768 略高于临界值，131072 只有一条记录。这些数值用来构造假设的上下文情景，**不是模型实际训练序列长度的观测值**，也不能据此验证注意力成本。注意力与基础训练成本比为 $\eta L_{ctx}/6$，不依赖 $N,D$；在 32768 情景时约为 1.092。固定 $C=10^{21}$、指数质量成本时：
@@ -113,7 +145,7 @@
 
 ## 4. 结果核验与不确定性
 
-共复核 207 个主解、预算路径和上下文情景；最大预算超限比例 2.220e-16，所有 $N,D,Q_B$ 均在指定范围，逐解记录见 `constraint_checks.csv`。独立 180×90 网格核查的最大“优化 Loss－网格最小 Loss”为 -9.970e-09；另一种随机种子固定的差分进化全局搜索，对 12 个主解的最大“现有解 Loss－独立搜索 Loss”为 -3.550e-12。两者均未找到明显更优解，逐解见 `independent_grid_checks.csv` 和 `global_search_checks.csv`。内点变量的 Loss 边际降低量/FLOP 应相等；可比较的主解最大相对差为 7.224e-08，见 `marginal_kkt_checks.csv`。边界变量不要求满足内点相等式。
+共复核 207 个主解、预算路径和上下文情景；最大预算超限比例 2.220e-16，所有 $N,D,Q_B$ 均在指定范围，逐解记录见 `constraint_checks.csv`。独立 180×90 网格核查的最大“优化 Loss－网格最小 Loss”为 -9.970e-09；另一种随机种子固定的差分进化全局搜索，对 12 个主解的最大“现有解 Loss－独立搜索 Loss”为 -3.550e-12。两者均未找到明显更优解，逐解见 `independent_grid_checks.csv` 和 `global_search_checks.csv`。对预算活跃的方案，内点变量的 Loss 边际降低量/FLOP 应相等，下界变量的边际收益不得高于影子价格，上界变量不得低于影子价格；预算松弛时影子价格为零。可比较的内点最大相对差为 7.224e-08，**含角点单侧必要条件**的最大标准化违反量为 3.612e-08，逐项见 `marginal_kkt_checks.csv`。这是必要条件和独立搜索核验，不是全局最优的数学证明。
 
 来自问题二同编号 B1 轨迹/B6 单元重抽样的 80 个条件参数样本，其配置分位数如下（详见 `conditional_bootstrap_allocations.csv`、`conditional_bootstrap_quantiles.csv`）：
 
@@ -138,6 +170,7 @@
 | budget_path.pdf | budget_path.csv | 支持域内最优配置；高预算平台为支持域饱和 |
 | compute_allocation.pdf | optimal_allocations.csv | 三部分成本占已使用预算比例；未用预算另见表 |
 | context_sensitivity.pdf | context_sensitivity.csv | 以 C7 最大位置容量构造的假设情景；不是实测训练长度 |
+| discrete_and_floor_sensitivity.pdf | discrete_quality_summary.csv + support_floor_sensitivity.csv | 10^19 FLOPs 的 B6 离散质量档位及观测域内 D 下界敏感性 |
 
 从仓库根目录运行：
 

@@ -1,0 +1,2 @@
+﻿contrast,A4_1m_fitted_macro_loss_difference,bootstrap_2p5,bootstrap_50,bootstrap_97p5,test_1m_macro_rmse,abs_difference_over_test_rmse,transferable_to_B6_loss
+recommended_minus_training_mean,-0.006227630088329846,-0.017145630049595278,-0.006848383621346433,0.0031576460778616837,0.2319497495180631,0.026849048560170438,False

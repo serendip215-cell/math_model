@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import matplotlib
@@ -244,7 +244,7 @@ def global_search_check(sol: dict, data: Inputs) -> dict:
 
 
 def marginal_kkt_check(sol: dict, data: Inputs) -> dict:
-    """Compare loss gain per marginal FLOP among genuinely interior decisions."""
+    """Check interior equality and one-sided KKT inequalities at active bounds."""
     n, d, q = sol["N_star_B"], sol["D_star_B"], sol["Q_star_B"]
     kind, context = sol["quality_cost"], int(sol["L_ctx"])
     x = data.m0["A"] * n ** (-data.m0["alpha"])
@@ -271,10 +271,88 @@ def marginal_kkt_check(sol: dict, data: Inputs) -> dict:
                 sol["Q0_B"] + 1e-4 < q < 1 - 1e-4]
     active = efficiencies[interior]
     gap = float((active.max() - active.min()) / active.max()) if len(active) >= 2 else math.nan
+    budget_active = sol["C_unused_fraction"] < 1e-6
+    multiplier = float(active.mean()) if len(active) and budget_active else 0.0
+    lower = [bool(sol["N_lower_active"]), bool(sol["D_lower_active"]), sol["Q_active"] == "lower"]
+    upper = [bool(sol["N_upper_active"]), bool(sol["D_upper_active"]), sol["Q_active"] == "upper"]
+    violations = []
+    for k in range(3):
+        if interior[k]: violation = abs(efficiencies[k] - multiplier)
+        elif lower[k]: violation = max(0.0, efficiencies[k] - multiplier)
+        elif upper[k]: violation = max(0.0, multiplier - efficiencies[k])
+        else: violation = math.nan
+        violations.append(float(violation / max(multiplier, efficiencies[k], 1e-12)))
     return {"budget_FLOPs": sol["budget_FLOPs"], "quality_cost": kind,
             "N_interior": interior[0], "D_interior": interior[1], "Q_interior": interior[2],
             "N_gain_per_C21": efficiencies[0], "D_gain_per_C21": efficiencies[1],
-            "Q_gain_per_C21": efficiencies[2], "interior_relative_gap": gap}
+            "Q_gain_per_C21": efficiencies[2], "interior_relative_gap": gap,
+            "budget_active": budget_active, "shadow_gain_per_C21": multiplier,
+            "N_one_sided_violation": violations[0],
+            "D_one_sided_violation": violations[1],
+            "Q_one_sided_violation": violations[2],
+            "max_one_sided_violation": float(np.nanmax(violations))}
+
+
+def p1_recipe_contrast() -> pd.DataFrame:
+    """A within-A4 1M contrast only; it cannot be added to B6 absolute Loss."""
+    recipe = pd.read_csv(P1 / "mixture" / "results" / "recommended_mixture.csv")
+    fitted = np.load(P1 / "mixture" / "results" / "selected_response_surface.npz", allow_pickle=False)
+    boot = np.load(P1 / "mixture" / "results" / "selected_response_bootstrap.npz", allow_pickle=False)
+    if fitted["coefficients"].shape[1] != len(fitted["powers"]):
+        raise ValueError("Problem-one response export dimensions changed")
+    ordered = recipe.set_index("domain").loc[fitted["domains"]]
+    basis, powers = fitted["basis"], fitted["powers"]
+
+    def features(shares: np.ndarray) -> np.ndarray:
+        shares = np.maximum(shares, 1e-6)
+        shares = shares / shares.sum()
+        ilr = np.log(shares) @ basis.T
+        return np.prod(ilr[None, :] ** powers, axis=1)
+
+    difference = features(ordered.recommended_share.to_numpy()) - features(
+        ordered.training_mean_share.to_numpy())
+    fitted_delta = float(difference @ fitted["coefficients"].mean(axis=0))
+    replicates = boot["macro_coefficients"] @ difference
+    save(pd.DataFrame({"replicate": boot["replicate"],
+                       "recommended_minus_training_mean_1m_loss": replicates}),
+         "p1_recipe_contrast_bootstrap.csv")
+    metrics = pd.read_csv(P1 / "mixture" / "results" / "mixture_model_metrics.csv")
+    test_rmse = float(metrics.query("split == 'test_1m' and target == 'macro_average'").rmse.iloc[0])
+    return save(pd.DataFrame([{
+        "contrast": "recommended_minus_training_mean",
+        "A4_1m_fitted_macro_loss_difference": fitted_delta,
+        "bootstrap_2p5": float(np.quantile(replicates, .025)),
+        "bootstrap_50": float(np.median(replicates)),
+        "bootstrap_97p5": float(np.quantile(replicates, .975)),
+        "test_1m_macro_rmse": test_rmse,
+        "abs_difference_over_test_rmse": abs(fitted_delta) / test_rmse,
+        "transferable_to_B6_loss": False
+    }]), "p1_recipe_contrast.csv")
+
+
+def fixed_quality_loss(budget: float, context: int, kind: str, q0: float,
+                       q: float, data: Inputs) -> float:
+    """Optimize N and D at one observed B6 quality level; keep the same Q0 cost anchor."""
+    c = budget / 1e21
+    a = .001 * (6 + ETA * context)
+    b = max(0.0, g(q, kind) - g(q0, kind)) / 1e12
+    nmax = min(data.nhi, (c / data.dlo - b) / a)
+    if nmax < data.nlo: return math.inf
+
+    def value(log_n: float) -> float:
+        n = math.exp(log_n)
+        d = min(data.dhi, c / (a * n + b))
+        return loss(n, d, q, data) if d >= data.dlo * (1 - 1e-9) else math.inf
+
+    logs = np.linspace(math.log(data.nlo), math.log(max(data.nlo, nmax)), 150)
+    values = np.asarray([value(float(x)) for x in logs])
+    k = int(np.argmin(values))
+    best = float(values[k])
+    lo, hi = logs[max(0, k - 1)], logs[min(len(logs) - 1, k + 1)]
+    if hi > lo:
+        best = min(best, float(minimize_scalar(value, bounds=(lo, hi), method="bounded",
+                                              options={"xatol": 1e-12}).fun))
+    return best
 
 
 def configure_plots() -> None:
@@ -284,7 +362,8 @@ def configure_plots() -> None:
 
 
 def figures(main: pd.DataFrame, path: pd.DataFrame, contexts: pd.DataFrame,
-            sensitivity: pd.DataFrame) -> pd.DataFrame:
+            sensitivity: pd.DataFrame, quality_summary: pd.DataFrame,
+            floor_sensitivity: pd.DataFrame) -> pd.DataFrame:
     configure_plots()
     manifest = []
     fig, axes = plt.subplots(1, 3, figsize=(12, 3.6))
@@ -324,6 +403,23 @@ def figures(main: pd.DataFrame, path: pd.DataFrame, contexts: pd.DataFrame,
     axes[0].legend(fontsize=8); fig.tight_layout()
     name = "context_sensitivity.pdf"; fig.savefig(FIGURES / name, bbox_inches="tight"); plt.close(fig)
     manifest.append((name, "context_sensitivity.csv", "以 C7 最大位置容量构造的假设情景；不是实测训练长度"))
+
+    low = quality_summary[quality_summary.budget_FLOPs == 1e19]
+    d_floor = floor_sensitivity[floor_sensitivity.floor_type == "D_min_B"]
+    fig, axes = plt.subplots(1, 2, figsize=(9.5, 3.5))
+    axes[0].bar(low.quality_cost, low.snap_loss_penalty, color="#2563eb")
+    axes[0].set_ylabel("离散 Q 档位的预测 Loss 增量")
+    axes[0].set_xlabel("质量成本函数")
+    axes[0].grid(axis="y", alpha=.2)
+    axes[1].plot(d_floor.floor_value_B, d_floor.predicted_loss, marker="o", color="#d97706")
+    axes[1].set_xlabel("D 下界（十亿 Token）")
+    axes[1].set_ylabel("低预算条件预测 Loss")
+    axes[1].grid(alpha=.2)
+    fig.tight_layout()
+    name = "discrete_and_floor_sensitivity.pdf"
+    fig.savefig(FIGURES / name, bbox_inches="tight"); plt.close(fig)
+    manifest.append((name, "discrete_quality_summary.csv + support_floor_sensitivity.csv",
+                     "10^19 FLOPs 的 B6 离散质量档位及观测域内 D 下界敏感性"))
     return save(pd.DataFrame(manifest, columns=["figure", "data_source", "interpretation"]), "figure_manifest.csv")
 
 
@@ -434,6 +530,50 @@ def main() -> None:
                         "global_search_checks.csv")
     kkt_check = save(pd.DataFrame([marginal_kkt_check(row, data) for row in base_rows]),
                      "marginal_kkt_checks.csv")
+    recipe_contrast = p1_recipe_contrast()
+    b6_levels = sorted(pd.read_csv(DATA / "B_scaling_laws" / "supplementary_NQ_experiment.csv")
+                       .Q_score.unique())
+    quality_rows = []
+    for row in base_rows:
+        for q in b6_levels:
+            if q < row["Q0_B"] - 1e-10: continue
+            candidate = fixed_quality_loss(row["budget_FLOPs"], int(row["L_ctx"]),
+                                           row["quality_cost"], row["Q0_B"], float(q), data)
+            quality_rows.append({"budget_FLOPs": row["budget_FLOPs"],
+                                 "quality_cost": row["quality_cost"], "Q_B_observed_level": q,
+                                 "fixed_Q_loss": candidate, "feasible": np.isfinite(candidate)})
+    quality_grid = save(pd.DataFrame(quality_rows), "discrete_quality_grid.csv")
+    quality_summary_rows = []
+    for row in base_rows:
+        sub = quality_grid[(quality_grid.budget_FLOPs == row["budget_FLOPs"]) &
+                           (quality_grid.quality_cost == row["quality_cost"]) &
+                           quality_grid.feasible]
+        best = sub.loc[sub.fixed_Q_loss.idxmin()]
+        quality_summary_rows.append({"budget_FLOPs": row["budget_FLOPs"],
+                                     "quality_cost": row["quality_cost"],
+                                     "continuous_Q_star_B": row["Q_star_B"],
+                                     "best_observed_Q_B": best.Q_B_observed_level,
+                                     "continuous_loss": row["predicted_loss"],
+                                     "observed_grid_loss": best.fixed_Q_loss,
+                                     "snap_loss_penalty": best.fixed_Q_loss - row["predicted_loss"]})
+    quality_summary = save(pd.DataFrame(quality_summary_rows), "discrete_quality_summary.csv")
+    floor_rows = []
+    for floor_type, values in [("D_min_B", [data.dlo, 12.0, 15.0, 20.0]),
+                               ("N_min_B", [data.nlo, .10, .12])]:
+        for value in values:
+            candidate_data = replace(data, **({"dlo": value} if floor_type == "D_min_B"
+                                              else {"nlo": value}))
+            try:
+                solution = optimize(1e19, context_main, "exponential", Q0_MAIN, candidate_data)
+                floor_rows.append({"floor_type": floor_type, "floor_value_B": value,
+                                   "status": "feasible", "N_star_B": solution["N_star_B"],
+                                   "D_star_B": solution["D_star_B"],
+                                   "Q_star_B": solution["Q_star_B"],
+                                   "predicted_loss": solution["predicted_loss"]})
+            except ValueError:
+                floor_rows.append({"floor_type": floor_type, "floor_value_B": value,
+                                   "status": "infeasible"})
+    floor_sensitivity = save(pd.DataFrame(floor_rows), "support_floor_sensitivity.csv")
 
     m0boot = pd.read_csv(P2 / "m0_bootstrap_parameters.csv").set_index("replicate")
     m1boot = pd.read_csv(P2 / "m1_bootstrap_parameters.csv").set_index("replicate")
@@ -453,9 +593,10 @@ def main() -> None:
     boot = save(pd.DataFrame(boot_rows), "conditional_bootstrap_allocations.csv")
     quant = boot.groupby("budget_FLOPs")[["N_star_B", "D_star_B", "Q_star_B", "predicted_loss"]].quantile([.025, .5, .975])
     save(quant.reset_index().rename(columns={"level_1": "quantile"}), "conditional_bootstrap_quantiles.csv")
-    manifest = figures(main_df, path, contexts, contexts)
+    manifest = figures(main_df, path, contexts, contexts, quality_summary, floor_sensitivity)
     write_report(data, main_df, path, transitions_df, contexts, constraint_checks,
-                 grid_check, global_check, kkt_check, boot, manifest)
+                 grid_check, global_check, kkt_check, recipe_contrast,
+                 quality_summary, floor_sensitivity, boot, manifest)
     summary = {"support": {"N_B": [data.nlo, data.nhi], "D_B": [data.dlo, data.dhi],
                            "Q_B": [Q0_MAIN, 1.0]},
                "C7_contexts": [int(x) for x in data.contexts], "L_crit": 6 / ETA,
@@ -464,6 +605,8 @@ def main() -> None:
                "max_optimized_minus_grid": float(grid_check.optimized_minus_grid.max()),
                "max_optimized_minus_global": float(global_check.optimized_minus_global.max()),
                "max_interior_kkt_gap": float(kkt_check.interior_relative_gap.max()),
+               "max_one_sided_kkt_violation": float(kkt_check.max_one_sided_violation.max()),
+               "max_discrete_quality_penalty": float(quality_summary.snap_loss_penalty.max()),
                "conditional_bootstrap_replicates": len(selected),
                "transitions": len(transitions_df), "no_QA_to_QB_calibration": True,
                "C7_is_capacity_not_measured_training_length": True,
@@ -497,7 +640,10 @@ def optimize_fixed_q(budget: float, context: int, kind: str, q0: float, data: In
 def write_report(data: Inputs, main_df: pd.DataFrame, path: pd.DataFrame,
                  transitions: pd.DataFrame, contexts: pd.DataFrame,
                  checks: pd.DataFrame, grid: pd.DataFrame,
-                 global_check: pd.DataFrame, kkt_check: pd.DataFrame, boot: pd.DataFrame,
+                 global_check: pd.DataFrame, kkt_check: pd.DataFrame,
+                 recipe_contrast: pd.DataFrame, quality_summary: pd.DataFrame,
+                 floor_sensitivity: pd.DataFrame,
+                 boot: pd.DataFrame,
                  manifest: pd.DataFrame) -> None:
     focus = main_df[main_df.quality_cost == "exponential"]
     focus_view = focus[["budget_FLOPs", "N_star_B", "D_star_B", "Q_star_B", "predicted_loss",
@@ -556,6 +702,24 @@ def write_report(data: Inputs, main_df: pd.DataFrame, path: pd.DataFrame,
 
 其他预算的 $Q_{{B,0}}$ 扫描见 `quality_baseline_sensitivity.csv`。低预算下最优质量对基线假设敏感，故不把单一 $Q_{{B,0}}$ 的选择写成确定政策。
 
+### 第一问配比差值与第三问不可识别性
+
+利用第一问保存的 1M 二次 ILR 响应面，在**同一 A4 协议**下比较推荐质心与训练均值，所得差值及按 A4 配比行重抽样的区间如下（差值为推荐减训练均值，负值代表该模型预测 Loss 较低）：
+
+{table(recipe_contrast, 6)}
+
+这是第一问 1M 模型的配比对比，不是第三问的绝对 Loss 增益；A4 与 B6 缺少共同实验及标尺校准，无法把该差值加到 exp_both 目标式，也无法声称推荐配比在本问最优。自举区间仅反映 A4 拟合抽样，不覆盖跨协议和大尺度转移误差。500 个重抽样值见 `p1_recipe_contrast_bootstrap.csv`。
+
+### 连续质量插值与低预算边界敏感性
+
+B6 只有离散 $Q_B$ 水平。将 $Q_B$ 限定为 B6 实际列出的水平、同时重新优化 $N,D$ 后，$10^{{19}}$ FLOPs 的对照如下；`snap_loss_penalty` 是离散方案相对连续插值最优解的模型预测 Loss 增量：
+
+{table(quality_summary[quality_summary.budget_FLOPs == 1e19], 6)}
+
+全部预算及成本式见 `discrete_quality_grid.csv`、`discrete_quality_summary.csv`。这只检验连续插值对方案的影响，不表示实际能买到精确的质量档位。低预算下的 $D_{{min}}$ 与 $N_{{min}}$ 为支持域边界；把下界**向内收紧**后的情景见下表。向外放宽低于观测最小值需要外推，本报告不据此推荐新最优解。
+
+{table(floor_sensitivity, 6)}
+
 ## 3. 上下文与结构性转移
 
 题面 $C_{{train}}=6ND$、$C_{{attn}}=\eta NDL_{{ctx}}$ 给出临界值 $L_{{ctx}}^{{crit}}=6/\eta=30,000$。C7 的 `max_position_embeddings` 有 {[int(x) for x in data.contexts]} 五种**最大位置容量**，其中 32768 略高于临界值，131072 只有一条记录。这些数值用来构造假设的上下文情景，**不是模型实际训练序列长度的观测值**，也不能据此验证注意力成本。注意力与基础训练成本比为 $\eta L_{{ctx}}/6$，不依赖 $N,D$；在 32768 情景时约为 1.092。固定 $C=10^{{21}}$、指数质量成本时：
@@ -572,7 +736,7 @@ def write_report(data: Inputs, main_df: pd.DataFrame, path: pd.DataFrame,
 
 ## 4. 结果核验与不确定性
 
-共复核 {len(checks)} 个主解、预算路径和上下文情景；最大预算超限比例 {checks.relative_budget_violation.max():.3e}，所有 $N,D,Q_B$ 均在指定范围，逐解记录见 `constraint_checks.csv`。独立 {int(grid.grid_N_points.iloc[0])}×{int(grid.grid_Q_points.iloc[0])} 网格核查的最大“优化 Loss－网格最小 Loss”为 {grid.optimized_minus_grid.max():.3e}；另一种随机种子固定的差分进化全局搜索，对 12 个主解的最大“现有解 Loss－独立搜索 Loss”为 {global_check.optimized_minus_global.max():.3e}。两者均未找到明显更优解，逐解见 `independent_grid_checks.csv` 和 `global_search_checks.csv`。内点变量的 Loss 边际降低量/FLOP 应相等；可比较的主解最大相对差为 {kkt_check.interior_relative_gap.max():.3e}，见 `marginal_kkt_checks.csv`。边界变量不要求满足内点相等式。
+共复核 {len(checks)} 个主解、预算路径和上下文情景；最大预算超限比例 {checks.relative_budget_violation.max():.3e}，所有 $N,D,Q_B$ 均在指定范围，逐解记录见 `constraint_checks.csv`。独立 {int(grid.grid_N_points.iloc[0])}×{int(grid.grid_Q_points.iloc[0])} 网格核查的最大“优化 Loss－网格最小 Loss”为 {grid.optimized_minus_grid.max():.3e}；另一种随机种子固定的差分进化全局搜索，对 12 个主解的最大“现有解 Loss－独立搜索 Loss”为 {global_check.optimized_minus_global.max():.3e}。两者均未找到明显更优解，逐解见 `independent_grid_checks.csv` 和 `global_search_checks.csv`。对预算活跃的方案，内点变量的 Loss 边际降低量/FLOP 应相等，下界变量的边际收益不得高于影子价格，上界变量不得低于影子价格；预算松弛时影子价格为零。可比较的内点最大相对差为 {kkt_check.interior_relative_gap.max():.3e}，**含角点单侧必要条件**的最大标准化违反量为 {kkt_check.max_one_sided_violation.max():.3e}，逐项见 `marginal_kkt_checks.csv`。这是必要条件和独立搜索核验，不是全局最优的数学证明。
 
 来自问题二同编号 B1 轨迹/B6 单元重抽样的 {boot.replicate.nunique()} 个条件参数样本，其配置分位数如下（详见 `conditional_bootstrap_allocations.csv`、`conditional_bootstrap_quantiles.csv`）：
 

@@ -2,3 +2,4 @@
 budget_path.pdf,budget_path.csv,支持域内最优配置；高预算平台为支持域饱和
 compute_allocation.pdf,optimal_allocations.csv,三部分成本占已使用预算比例；未用预算另见表
 context_sensitivity.pdf,context_sensitivity.csv,以 C7 最大位置容量构造的假设情景；不是实测训练长度
+discrete_and_floor_sensitivity.pdf,discrete_quality_summary.csv + support_floor_sensitivity.csv,10^19 FLOPs 的 B6 离散质量档位及观测域内 D 下界敏感性
