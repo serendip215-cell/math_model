@@ -1,9 +1,12 @@
 % !TEX program = xelatex
 % 华为杯 LaTeX 模板风格的匿名论文草稿；数据与结果来自题目附件。
 \documentclass[fontset=windows,12pt,a4paper]{ctexart}
+% Preserve Chinese text for PDF search/copy and readers that use ActualText.
+\XeTeXgenerateactualtext=1
 \usepackage[a4paper,top=30mm,bottom=25mm,left=22.5mm,right=22.5mm]{geometry}
 \usepackage{amsmath,amssymb,booktabs,array,graphicx,float,hyperref}
 \usepackage{caption,titlesec,tocloft}
+\setcounter{tocdepth}{1}
 \hypersetup{colorlinks=false,pdfborder={0 0 0}}
 \captionsetup{font=small}
 \setlength{\parindent}{2em}
