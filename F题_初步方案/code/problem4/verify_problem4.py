@@ -39,11 +39,11 @@ def main() -> None:
           panel.loc[panel.license_explicit_no, "Epoch_AI_Open_Weights"].eq("No").all())
     check("Panel cutoff", pd.to_datetime(panel.submission).max() <= pd.Timestamp("2025-03-13"))
     phi = panel[panel.Model.isin(["microsoft/phi-1", "microsoft/phi-4"])]
-    check("Author-supported Phi stage correction preserved with raw labels",
+    check("Main panel preserves attachment Phi type labels",
           len(phi) == 2 and phi.type_group_raw.eq("pretrained").all() and
-          phi.type_group.eq("posttrained").all())
+          phi.type_group.eq("pretrained").all())
     check("Pretrained late count", len(panel[panel.strict_open &
-          panel.type_group.eq("pretrained") & pd.to_datetime(panel.submission).ge("2025-01-01")]) == 4)
+          panel.type_group.eq("pretrained") & pd.to_datetime(panel.submission).ge("2025-01-01")]) == 5)
     check("Flow raw row count", int(flow.iloc[0].rows) == len(raw))
     publication = read("publication_submission_audit.csv")
     check("Publication audit totals strict pre and post", publication.models.sum() ==

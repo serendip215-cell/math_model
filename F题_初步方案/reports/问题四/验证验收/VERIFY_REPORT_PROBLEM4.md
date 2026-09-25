@@ -10,7 +10,7 @@
 | Strict open evidence | 通过 |  |
 | Unknown weight stratum excludes explicit No | 通过 |  |
 | Panel cutoff | 通过 |  |
-| Author-supported Phi stage correction preserved with raw labels | 通过 |  |
+| Main panel preserves attachment Phi type labels | 通过 |  |
 | Pretrained late count | 通过 |  |
 | Flow raw row count | 通过 |  |
 | Publication audit totals strict pre and post | 通过 |  |

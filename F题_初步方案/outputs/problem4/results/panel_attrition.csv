@@ -6,5 +6,5 @@ permissive license,1725,1725,284.0
 strict open weight + license,236,236,24.0
 permissive license + unknown weight status,1485,1485,273.0
 permissive license + explicit No weight status,4,4,3.0
-strict pretrained,40,40,13.0
-strict posttrained,143,143,17.0
+strict pretrained,42,42,13.0
+strict posttrained,141,141,17.0

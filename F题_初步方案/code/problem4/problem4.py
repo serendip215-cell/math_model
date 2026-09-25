@@ -119,10 +119,8 @@ def prepare_panel(c2: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.Data
                  "unique_models": a.Model.nunique()})
     a["type_group_raw"] = a.Type.map(model_type)
     a["type_group"] = a.type_group_raw.copy()
-    # Primary author documents identify these released checkpoints as post-trained.
-    # See c4_source_review.py for the paper/model-card evidence.
-    a.loc[a.Model.isin(["microsoft/phi-1", "microsoft/phi-4"]),
-          "type_group"] = "posttrained"
+    # Keep the competition attachment's labels in the main analysis. External
+    # source disagreements are documented only in the separate source audit.
     a["family"] = a.Model.map(family)
     a["namespace"] = a.Model.astype(str).str.split("/").str[0].str.lower()
     a["license_permissive"] = a["Hub License"].isin(PERMISSIVE)
@@ -870,8 +868,8 @@ def write_report(flow: pd.DataFrame, links: pd.DataFrame, usable: pd.DataFrame,
              "", "### 提交日与 Epoch 元数据发布日期", "",
              "Epoch 元数据发布日期可能对应匹配的基础模型，不能直接等同于衍生模型发布时间；晚于提交日的日期更不能视为历史可得信息。下表仅审计两日期差异，主模型的时间变量仍是排行榜提交日。",
              "", tbl(publication_audit), "",
-             f"C1/C4 名称候选 {len(links)} 行，规则接受 {int(links.accepted_link.sum())} 行。原始标签下预训练且算力可用 {len(manual_review)} 行；作者资料表明 phi-1 与 phi-4 发布权重经过后训练，纠正分层后严格开放预训练且算力可用 {len(usable)} 行。候选和接受均不等于逐 checkpoint 核验。",
-             f"原始标签下这 {len(manual_review)} 条算力连接的来源、参数与算力备注已汇成 `c4_manual_review_queue.csv`；其中开发者 ID 缺失 {int(manual_review.owner_id_missing.sum())} 条。外部来源逐条复核另见 `c4_external_source_review.csv`；它只核对公开资料与 C4 估算口径，未取得逐仓库 checkpoint 哈希或训练遥测。",
+             f"C1/C4 名称候选 {len(links)} 行，规则接受 {int(links.accepted_link.sum())} 行，按题目附件原始预训练标签且算力可用 {len(usable)} 行。主分析保持附件分类，不用外部网页改写原始标签；候选和接受均不等于逐 checkpoint 核验。",
+             f"这 {len(manual_review)} 条算力连接的来源、参数与算力备注已汇成 `c4_manual_review_queue.csv`；其中开发者 ID 缺失 {int(manual_review.owner_id_missing.sum())} 条。外部来源核查另见 `c4_external_source_review.csv`，只用于敏感性和局限性说明，不替代题目附件。",
              "", "### C8 逐任务核算", "",
              f"扫描 {c8['json_files']} 个 JSON；解析 {c8['parsed']} 个；模型去重后 {c8['models_latest']} 个；与 C1 连接 {c8['joined_to_C1']} 个，其中同一叶任务集合 {c8['common_task_set_joined']} 个。C8 叶任务宏平均与 C1 BBH **数值标尺未证实相同**，因此只做覆盖与秩序审计，不强行回代相等。重复版本以记录时间及文件名排序取末份。",
              "", "## 规模、时间残差与验证", "",
@@ -913,7 +911,7 @@ def write_report(flow: pd.DataFrame, links: pd.DataFrame, usable: pd.DataFrame,
               "## 算力审计与观测前沿", "",
               "C4 连接子样本只报告关联与按家族重抽样的 Spearman 区间，不使用把相关模型当独立样本的普通 p 值；区间也不消除年代、架构等混杂。C4 独立资源趋势不与 Benchmark 行序拼接。每月观测最大值和 90% 分位随样本量列出；稀疏月份的分位数尤其不稳定。",
               "", tbl(compute), "",
-              "公开来源复核把 29 条分为近似预训练算力有来源支持、训练阶段/算力口径不可比、证据不足三类。`source_supported_estimate` 不表示训练方直接测得 FLOPs；也不代表已核对 checkpoint 哈希。下表是来源支持子集的独立敏感性，仍受小样本、家族聚集、年代和架构混杂限制，不作因果推断。",
+              "主表按题目附件原始口径计算。作为补充敏感性，外部来源核查把 29 条分为近似预训练算力有来源支持、外部资料提示训练阶段/算力口径不一致、证据不足三类。该分类不改写主数据。`source_supported_estimate` 不表示训练方直接测得 FLOPs；也不代表已核对 checkpoint 哈希。下表仅是来源支持子集的敏感性，仍受小样本、家族聚集、年代和架构混杂限制，不作因果推断。",
               "", tbl(source_review.groupby("source_review_status", as_index=False).size()), "",
               tbl(source_compute), "",
               tbl(monthly[["type_group", "month", "models", "families", "max_score", "q90_score"]]), "",
@@ -924,7 +922,7 @@ def write_report(flow: pd.DataFrame, links: pd.DataFrame, usable: pd.DataFrame,
               "", tbl(scenario_view), "", "## 图表与可复算文件", "",
               "图表在 `outputs/problem4/figures/`，全部由同一脚本生成。原始合同、连接逐行理由、C8 文件审计、留出指标、分解支持和重抽样、资源情景均在 `outputs/problem4/results/`。",
               "", "## 结论边界", "",
-              "排行榜提交不是随机实验，也不等于模型发布日期；主结果仅覆盖许可证和权重可核的模型。严格开放预训练的晚期样本较少。粗粒度家族划分与模型重复提交可能缩小有效样本量。C4 的公开来源与估算口径已分级复核，但没有逐 checkpoint 身份、完整训练遥测的确认；来源支持子集也只能用于探索性关联。C8 与 C1 BBH 标尺不同。C6 桥接不支持前三问 Loss 向当前或未来排行榜前沿转译。长期情景没有同长度回测；不得写成已经验证的预测。", ""]
+              "排行榜提交不是随机实验，也不等于模型发布日期；主结果按题目附件原始字段计算，仅覆盖许可证和权重可核的模型。严格开放预训练的晚期样本较少。粗粒度家族划分与模型重复提交可能缩小有效样本量。外部来源核查只作补充敏感性，不改写主模型标签；也未取得逐 checkpoint 身份或完整训练遥测。C8 与 C1 BBH 标尺不同。C6 桥接不支持前三问 Loss 向当前或未来排行榜前沿转译。长期情景没有同长度回测；不得写成已经验证的预测。", ""]
     REPORT.write_text("\n".join(lines), encoding="utf-8")
 
 
