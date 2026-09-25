@@ -1,7 +1,7 @@
 ﻿family_heuristic,holdout_models,example_model,full_delta_rmse,delta_without_family,absolute_influence_points,base_family_identity_review
-llama,4,deepseek-ai/DeepSeek-R1-Distill-Llama-70B,3.717140125126692,1.826083771993245,1.8910563531334468,pending_source_evidence
-phi,16,1024m/PHI-4-Hindi,3.717140125126692,5.110512267267675,1.3933721421409828,pending_source_evidence
-deepseek,2,Sourjayon/DeepSeek-R1-8b-Sify,3.717140125126692,2.654639964851661,1.0625001602750306,pending_source_evidence
-namespace:aidc-ai,1,AIDC-AI/Marco-o1,3.717140125126692,4.486319683492958,0.7691795583662664,pending_source_evidence
-namespace:godlikehhd,16,godlikehhd/alpaca_data_full_2,3.717140125126692,4.281365080686369,0.564224955559677,pending_source_evidence
-qwen,28,1024m/QWEN-14B-B100,3.717140125126692,3.694471317828625,0.022668807298066973,pending_source_evidence
+llama,4,deepseek-ai/DeepSeek-R1-Distill-Llama-70B,4.0248298393997946,2.0822843076152884,1.9425455317845062,pending_source_evidence
+phi,17,1024m/PHI-4-Hindi,4.0248298393997946,5.355976962657199,1.3311471232574048,pending_source_evidence
+deepseek,2,Sourjayon/DeepSeek-R1-8b-Sify,4.0248298393997946,2.9572506825623375,1.067579156837457,pending_source_evidence
+namespace:aidc-ai,1,AIDC-AI/Marco-o1,4.0248298393997946,4.828925752799183,0.8040959133993884,pending_source_evidence
+namespace:godlikehhd,16,godlikehhd/alpaca_data_full_2,4.0248298393997946,4.6485149848313085,0.623685145431514,pending_source_evidence
+qwen,28,1024m/QWEN-14B-B100,4.0248298393997946,4.011918455201012,0.012911384198782905,pending_source_evidence

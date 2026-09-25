@@ -1,18 +1,18 @@
 ﻿Model_C1,Model_C4,Organization,Hugging Face developer id,N_B,Parameters,Parameters notes,N_ratio,submission,Publication date,Training compute (FLOP),Training compute notes,Training compute estimation method,Base model,Foundation model,Confidence,Open model weights?,Reference,Link,automated_rule_status,manual_review_status,repository_revision_evidence,version_identity_review,training_stage_review,compute_source_review,historical_open_status_review,reviewer_notes,owner_id_missing
-EleutherAI/gpt-j-6b,GPT-J-6B,"EleutherAI,LAION",,6.0,6053381344.0,source: model details table in GitHub,0.9911815659766899,2024-08-19,2021-05-01,1.5e+22,source: zero shot evaluation table in GitHub,Reported,,,Confident,Yes,GPT-J-6B: 6B JAX-Based Transformer,https://arankomatsuzaki.wordpress.com/2021/06/04/gpt-j/,passed,pending_external_source_check,,,,,,,True
-EleutherAI/gpt-neox-20b,GPT-NeoX-20B,EleutherAI,,20.739,20000000000.0,,1.03695,2024-06-09,2022-02-09,9.31627008e+22,Trained for 3 months on 96 A100s (according to correspondence with author). Let's say 0.4 utilization rate.,Hardware,,,Confident,Yes,GPT-NeoX-20B: An Open-Source Autoregressive Language Model,https://arxiv.org/abs/2204.06745,passed,pending_external_source_check,,,,,,,True
+EleutherAI/gpt-j-6b,GPT-J-6B,"EleutherAI,LAION",,6.0,6053381344.0,source: model details table in GitHub,0.9911815659766899,2024-08-19,2021-05-01,1.5e+22,source: zero shot evaluation table in GitHub,Reported,,,Confident,Yes,GPT-J-6B: 6B JAX-Based Transformer,https://arankomatsuzaki.wordpress.com/2021/06/04/gpt-j/,passed,pending_checkpoint_and_training_telemetry_check,,,,,,,True
+EleutherAI/gpt-neox-20b,GPT-NeoX-20B,EleutherAI,,20.739,20000000000.0,,1.03695,2024-06-09,2022-02-09,9.31627008e+22,Trained for 3 months on 96 A100s (according to correspondence with author). Let's say 0.4 utilization rate.,Hardware,,,Confident,Yes,GPT-NeoX-20B: An Open-Source Autoregressive Language Model,https://arxiv.org/abs/2204.06745,passed,pending_checkpoint_and_training_telemetry_check,,,,,,,True
 EleutherAI/pythia-1.4b,Pythia-1.4b,"EleutherAI,Booz Allen Hamilton, McLean,University of Cambridge,Indraprastha Institute of Information Technology
-Delhi,Stability AI,datasaur.ai,University of Amsterdam",,1.515,1400000000.0,See Table 1 for non-embedding parameters,1.082142857142857,2025-01-28,2023-04-03,2.5190000000001e+21,https://www.wolframalpha.com/input?i=6+FLOP+*+1.4+billion+*+299892736000,Operation counting,,,Confident,Yes,Pythia: A Suite for Analyzing Large Language Models Across Training and Scaling,https://arxiv.org/abs/2304.01373,passed,pending_external_source_check,,,,,,,True
+Delhi,Stability AI,datasaur.ai,University of Amsterdam",,1.515,1400000000.0,See Table 1 for non-embedding parameters,1.082142857142857,2025-01-28,2023-04-03,2.5190000000001e+21,https://www.wolframalpha.com/input?i=6+FLOP+*+1.4+billion+*+299892736000,Operation counting,,,Confident,Yes,Pythia: A Suite for Analyzing Large Language Models Across Training and Scaling,https://arxiv.org/abs/2304.01373,passed,pending_checkpoint_and_training_telemetry_check,,,,,,,True
 EleutherAI/pythia-12b,Pythia-12b,"EleutherAI,Booz Allen Hamilton, McLean,University of Cambridge,Indraprastha Institute of Information Technology
-Delhi,Stability AI,datasaur.ai,University of Amsterdam",,12.0,12000000000.0,See Table 1 for non-embedding parameters,1.0,2024-06-12,2023-04-03,2.1590000000001e+22,https://www.wolframalpha.com/input?i=6+FLOP+*+12+billion+*+299892736000,Operation counting,,,Confident,Yes,Pythia: A Suite for Analyzing Large Language Models Across Training and Scaling,https://arxiv.org/abs/2304.01373,passed,pending_external_source_check,,,,,,,True
+Delhi,Stability AI,datasaur.ai,University of Amsterdam",,12.0,12000000000.0,See Table 1 for non-embedding parameters,1.0,2024-06-12,2023-04-03,2.1590000000001e+22,https://www.wolframalpha.com/input?i=6+FLOP+*+12+billion+*+299892736000,Operation counting,,,Confident,Yes,Pythia: A Suite for Analyzing Large Language Models Across Training and Scaling,https://arxiv.org/abs/2304.01373,passed,pending_checkpoint_and_training_telemetry_check,,,,,,,True
 EleutherAI/pythia-1b,Pythia-1b,"EleutherAI,Booz Allen Hamilton, McLean,University of Cambridge,Indraprastha Institute of Information Technology
-Delhi,Stability AI,datasaur.ai,University of Amsterdam",,1.079,1000000000.0,See Table 1 for non-embedding parameters,1.079,2025-01-27,2023-04-03,1.799000000001e+21,https://www.wolframalpha.com/input?i=6+FLOP+*+1+billion+*+299892736000,Operation counting,,,Confident,Yes,Pythia: A Suite for Analyzing Large Language Models Across Training and Scaling,https://arxiv.org/abs/2304.01373,passed,pending_external_source_check,,,,,,,True
+Delhi,Stability AI,datasaur.ai,University of Amsterdam",,1.079,1000000000.0,See Table 1 for non-embedding parameters,1.079,2025-01-27,2023-04-03,1.799000000001e+21,https://www.wolframalpha.com/input?i=6+FLOP+*+1+billion+*+299892736000,Operation counting,,,Confident,Yes,Pythia: A Suite for Analyzing Large Language Models Across Training and Scaling,https://arxiv.org/abs/2304.01373,passed,pending_checkpoint_and_training_telemetry_check,,,,,,,True
 EleutherAI/pythia-2.8b,Pythia-2.8b,"EleutherAI,Booz Allen Hamilton, McLean,University of Cambridge,Indraprastha Institute of Information Technology
-Delhi,Stability AI,datasaur.ai,University of Amsterdam",,2.909,2800000000.0,See Table 1 for non-embedding parameters,1.0389285714285714,2024-06-12,2023-04-03,5.038000000001e+21,https://www.wolframalpha.com/input?i=6+FLOP+*+2.8+billion+*+299892736000,Operation counting,,,Confident,Yes,Pythia: A Suite for Analyzing Large Language Models Across Training and Scaling,https://arxiv.org/abs/2304.01373,passed,pending_external_source_check,,,,,,,True
+Delhi,Stability AI,datasaur.ai,University of Amsterdam",,2.909,2800000000.0,See Table 1 for non-embedding parameters,1.0389285714285714,2024-06-12,2023-04-03,5.038000000001e+21,https://www.wolframalpha.com/input?i=6+FLOP+*+2.8+billion+*+299892736000,Operation counting,,,Confident,Yes,Pythia: A Suite for Analyzing Large Language Models Across Training and Scaling,https://arxiv.org/abs/2304.01373,passed,pending_checkpoint_and_training_telemetry_check,,,,,,,True
 EleutherAI/pythia-410m,Pythia-410m,"EleutherAI,Booz Allen Hamilton, McLean,University of Cambridge,Indraprastha Institute of Information Technology
-Delhi,Stability AI,datasaur.ai,University of Amsterdam",,0.506,410000000.0,See Table 1 for non-embedding parameters,1.2341463414634146,2024-06-09,2023-04-03,7.37700000001e+20,https://www.wolframalpha.com/input?i=6+FLOP+*+410+million+*+299892736000,Operation counting,,,Confident,Yes,Pythia: A Suite for Analyzing Large Language Models Across Training and Scaling,https://arxiv.org/abs/2304.01373,passed,pending_external_source_check,,,,,,,True
+Delhi,Stability AI,datasaur.ai,University of Amsterdam",,0.506,410000000.0,See Table 1 for non-embedding parameters,1.2341463414634146,2024-06-09,2023-04-03,7.37700000001e+20,https://www.wolframalpha.com/input?i=6+FLOP+*+410+million+*+299892736000,Operation counting,,,Confident,Yes,Pythia: A Suite for Analyzing Large Language Models Across Training and Scaling,https://arxiv.org/abs/2304.01373,passed,pending_checkpoint_and_training_telemetry_check,,,,,,,True
 EleutherAI/pythia-6.9b,Pythia-6.9b,"EleutherAI,Booz Allen Hamilton, McLean,University of Cambridge,Indraprastha Institute of Information Technology
-Delhi,Stability AI,datasaur.ai,University of Amsterdam",,6.9,6900000000.0,See Table 1 for non-embedding parameters,1.0,2024-06-12,2023-04-03,1.2420000000001e+22,https://www.wolframalpha.com/input?i=6+FLOP+*+6.9+billion+*+299892736000,Operation counting,,,Confident,Yes,Pythia: A Suite for Analyzing Large Language Models Across Training and Scaling,https://arxiv.org/abs/2304.01373,passed,pending_external_source_check,,,,,,,True
+Delhi,Stability AI,datasaur.ai,University of Amsterdam",,6.9,6900000000.0,See Table 1 for non-embedding parameters,1.0,2024-06-12,2023-04-03,1.2420000000001e+22,https://www.wolframalpha.com/input?i=6+FLOP+*+6.9+billion+*+299892736000,Operation counting,,,Confident,Yes,Pythia: A Suite for Analyzing Large Language Models Across Training and Scaling,https://arxiv.org/abs/2304.01373,passed,pending_checkpoint_and_training_telemetry_check,,,,,,,True
 microsoft/phi-1_5,Phi-1.5,Microsoft,,1.418,1300000000.0,,1.0907692307692307,2024-06-09,2023-09-11,1.17e+21,"150B training tokens
 
 150B*1.3B*6 = 1.17e21
@@ -22,7 +22,7 @@ also, took 1.5k GPU-hours with A100s, per Table 1
 1500 * 312 trillion * 3600 * 0.3 (utilization assumption) = 5.05e20
 
 so utilization was likely ~60%. may be high due to the relatively small cluster.
-","Operation counting,Hardware",,True,Confident,Yes,Textbooks Are All You Need II: phi-1.5 technical report,"https://arxiv.org/abs/2309.05463, https://huggingface.co/microsoft/phi-1_5",passed,pending_external_source_check,,,,,,,True
+","Operation counting,Hardware",,True,Confident,Yes,Textbooks Are All You Need II: phi-1.5 technical report,"https://arxiv.org/abs/2309.05463, https://huggingface.co/microsoft/phi-1_5",passed,pending_checkpoint_and_training_telemetry_check,,,,,,,True
 microsoft/phi-2,Phi-2,Microsoft,,2.78,2700000000.0,2.7B,1.0296296296296297,2024-06-09,2023-12-12,2.27e+22,"2.7B params, trained on 1.4T tokens
 
 2.7 billion * 1.4 trillion * 6 = 2.27e22
@@ -30,73 +30,73 @@ microsoft/phi-2,Phi-2,Microsoft,,2.78,2700000000.0,2.7B,1.0296296296296297,2024-
 96*14 A100-days
 
 14 * 96 * 312 trillion * 24 * 3600 * 0.3 = 1.09e22","Operation counting,Hardware",,,Confident,Yes,Phi-2: The surprising power of small language models,"https://www.microsoft.com/en-us/research/blog/phi-2-the-surprising-power-of-small-language-models/
-https://huggingface.co/microsoft/phi-2",passed,pending_external_source_check,,,,,,,True
+https://huggingface.co/microsoft/phi-2",passed,pending_checkpoint_and_training_telemetry_check,,,,,,,True
 tiiuae/falcon-40b,Falcon-40B,Technology Innovation Institute,,40.0,40000000000.0,Model comes in 7B and 40B variants.,1.0,2024-06-09,2023-03-15,2.4e+23,"C = 6ND = 6 * 40B * 1000B = 2.4e+23 FLOP (assuming one epoch)
 
 Table 1 from https://arxiv.org/pdf/2311.16867 Falcon paper
 
-2,800 petaflop-days * 1e15 * 24 * 3600 = 2.4192e+23 FLOPs","Operation counting,Reported",,True,Confident,Yes,Abu Dhabi-based Technology Innovation Institute Introduces Falcon LLM: Foundational Large Language Model (LLM) outperforms GPT-3 with 40 Billion Parameters,https://arxiv.org/abs/2311.16867; https://www.tii.ae/news/abu-dhabi-based-technology-innovation-institute-introduces-falcon-llm-foundational-large,passed,pending_external_source_check,,,,,,,True
+2,800 petaflop-days * 1e15 * 24 * 3600 = 2.4192e+23 FLOPs","Operation counting,Reported",,True,Confident,Yes,Abu Dhabi-based Technology Innovation Institute Introduces Falcon LLM: Foundational Large Language Model (LLM) outperforms GPT-3 with 40 Billion Parameters,https://arxiv.org/abs/2311.16867; https://www.tii.ae/news/abu-dhabi-based-technology-innovation-institute-introduces-falcon-llm-foundational-large,passed,pending_checkpoint_and_training_telemetry_check,,,,,,,True
 togethercomputer/RedPajama-INCITE-7B-Base,RedPajama-INCITE-7B-Base,Together,,7.0,6900000000.0,6.9b,1.0144927536231885,2024-06-12,2023-06-06,4.1e+22,"Trained over 1.001 trillion tokens.
 6.9b * 1 trillion * 6 = 4.1e22
 
-",Operation counting,,,Confident,Yes,,https://huggingface.co/togethercomputer/RedPajama-INCITE-7B-Base,passed,pending_external_source_check,,,,,,,True
-01-ai/Yi-1.5-34B,Yi-1.5-34B,01.AI,01-ai,34.389,34000000000.0,34b,1.0114411764705882,2024-06-12,2024-05-13,7.344e+23,6 FLOP / parameter / token * 34*10^9 parameters * 3.6*10^12 tokens = 7.344e+23 FLOP,Operation counting,,,Confident,Yes,"Yi-1.5 is an upgraded version of Yi, delivering stronger performance in coding, math, reasoning, and instruction-following capability.",https://huggingface.co/01-ai/Yi-1.5-34B,passed,pending_external_source_check,,,,,,,False
-01-ai/Yi-1.5-9B,Yi-1.5-9B,01.AI,01-ai,8.829,8830000000.0,8.83B (safetensors),0.9998867497168743,2024-06-12,2024-05-13,1.90728e+23,6 FLOP / parameter / token * 8.83*10^9 parameters * 3.6*10^12 tokens = 1.90728e+23 FLOP,Operation counting,,,Confident,Yes,Yi-1.5 is an upgraded version of Yi.,https://huggingface.co/01-ai/Yi-1.5-9B,passed,pending_external_source_check,,,,,,,False
+",Operation counting,,,Confident,Yes,,https://huggingface.co/togethercomputer/RedPajama-INCITE-7B-Base,passed,pending_checkpoint_and_training_telemetry_check,,,,,,,True
+01-ai/Yi-1.5-34B,Yi-1.5-34B,01.AI,01-ai,34.389,34000000000.0,34b,1.0114411764705882,2024-06-12,2024-05-13,7.344e+23,6 FLOP / parameter / token * 34*10^9 parameters * 3.6*10^12 tokens = 7.344e+23 FLOP,Operation counting,,,Confident,Yes,"Yi-1.5 is an upgraded version of Yi, delivering stronger performance in coding, math, reasoning, and instruction-following capability.",https://huggingface.co/01-ai/Yi-1.5-34B,passed,pending_checkpoint_and_training_telemetry_check,,,,,,,False
+01-ai/Yi-1.5-9B,Yi-1.5-9B,01.AI,01-ai,8.829,8830000000.0,8.83B (safetensors),0.9998867497168743,2024-06-12,2024-05-13,1.90728e+23,6 FLOP / parameter / token * 8.83*10^9 parameters * 3.6*10^12 tokens = 1.90728e+23 FLOP,Operation counting,,,Confident,Yes,Yi-1.5 is an upgraded version of Yi.,https://huggingface.co/01-ai/Yi-1.5-9B,passed,pending_checkpoint_and_training_telemetry_check,,,,,,,False
 01-ai/Yi-34B,Yi-34B,01.AI,01-ai,34.389,34000000000.0,34b,1.0114411764705882,2024-06-12,2023-11-02,6.1e+23,"""The dataset we use contains Chinese & English only. We used approximately 3T tokens"" sounds like this means it was trained on 3T tokens, not necessarily that the dataset contains 3T tokens?
 
-If so, 34b * 3T * 6 = 6.1e23",Operation counting,,,Confident,Yes,Yi: Open Foundation Models by 01.AI,https://arxiv.org/abs/2403.04652,passed,pending_external_source_check,,,,,,,False
+If so, 34b * 3T * 6 = 6.1e23",Operation counting,,,Confident,Yes,Yi: Open Foundation Models by 01.AI,https://arxiv.org/abs/2403.04652,passed,pending_checkpoint_and_training_telemetry_check,,,,,,,False
 EleutherAI/gpt-neo-2.7B,GPT-Neo-2.7B,EleutherAI,EleutherAI,2.718,2700000000.0,"source: https://www.eleuther.ai/projects/gpt-neo/
 
 Note: Directory of LLMs (https://docs.google.com/spreadsheets/d/1gc6yse74XCwBx028HV_cvdxwXkmXejVjkO-Mz2uwE0k/edit#gid=0) gives a somewhat lower estimate (2e9)",1.0066666666666666,2024-06-12,2021-03-21,7.9e+21,"source: https://www.aitracker.org/
 
-6 FLOP / token / parameter * 2.7 * 10^9 parameters * 420000000000 tokens [see dataset size notes] = 6.804e+21 FLOP","Third-party estimation,Operation counting",,True,Confident,Yes,GPT-Neo: Large Scale Autoregressive Language Modeling with Mesh-Tensorflow,https://github.com/EleutherAI/gpt-neo,passed,pending_external_source_check,,,,,,,False
+6 FLOP / token / parameter * 2.7 * 10^9 parameters * 420000000000 tokens [see dataset size notes] = 6.804e+21 FLOP","Third-party estimation,Operation counting",,True,Confident,Yes,GPT-Neo: Large Scale Autoregressive Language Modeling with Mesh-Tensorflow,https://github.com/EleutherAI/gpt-neo,passed,pending_checkpoint_and_training_telemetry_check,,,,,,,False
 HuggingFaceTB/SmolLM-1.7B,SmolLM-1.7B,,HuggingFaceTB,1.71,1710000000.0,"The image here, https://huggingface.co/blog/smollm#hyperparameters-choice, shows that SmolLM-1.7B has 1.71B parameters.",1.0,2024-07-18,2024-07-16,1.03e+22,"""Therefore, we decided to train the 1.7B model on 1 trillion tokens"" (https://huggingface.co/blog/smollm#experiments). The model doesn't have any CNNs or RNNs (https://huggingface.co/blog/smollm#hyperparameters-choice), so I will approximate it to be dense. Then assuming the model saw 1 trillion tokens during training, the 6ND approximation yields
 Training compute
 = # of active parameters / forward pass * # of tokens * 6 FLOPs / token
 = 1.71e9 parameters * 1e12 tokens * 6 FLOPs / token
 ~= 1.03e22 FLOPS
 
-""We also instruction tuned the models using publicly available permissive instruction datasets. We trained all three models for one epoch on the permissive subset of the WebInstructSub dataset, combined with StarCoder2-Self-OSS-Instruct. Following this, we performed DPO (Direct Preference Optimization) for one epoch: using HelpSteer for the 135M and 1.7B models... We followed the training parameters from the Zephyr-Gemma recipe in the alignment handbook, but adjusted the SFT (Supervised Fine-Tuning) learning rate to 3e-4"" (https://huggingface.co/blog/smollm#evaluation).",Operation counting,,,Confident,Yes,SmolLM - blazingly fast and remarkably powerful,https://huggingface.co/blog/smollm,passed,pending_external_source_check,,,,,,,False
+""We also instruction tuned the models using publicly available permissive instruction datasets. We trained all three models for one epoch on the permissive subset of the WebInstructSub dataset, combined with StarCoder2-Self-OSS-Instruct. Following this, we performed DPO (Direct Preference Optimization) for one epoch: using HelpSteer for the 135M and 1.7B models... We followed the training parameters from the Zephyr-Gemma recipe in the alignment handbook, but adjusted the SFT (Supervised Fine-Tuning) learning rate to 3e-4"" (https://huggingface.co/blog/smollm#evaluation).",Operation counting,,,Confident,Yes,SmolLM - blazingly fast and remarkably powerful,https://huggingface.co/blog/smollm,passed,pending_checkpoint_and_training_telemetry_check,,,,,,,False
 Qwen/Qwen2-0.5B,Qwen2-0.5B,Alibaba,Qwen,0.494,500000000.0,,0.988,2024-11-30,2024-06-07,3.6e+22,6 FLOP/parameter/token * 500000000 parameters * 12000000000000 tokens = 3.6e+22 FLOP,Operation counting,,,Confident,Yes,Hello Qwen2,"https://qwenlm.github.io/blog/qwen2/
-https://arxiv.org/abs/2407.10671",passed,pending_external_source_check,,,,,,,False
+https://arxiv.org/abs/2407.10671",passed,pending_checkpoint_and_training_telemetry_check,,,,,,,False
 Qwen/Qwen2-1.5B,Qwen2-1.5B,Alibaba,Qwen,1.544,1500000000.0,1.5B,1.0293333333333334,2024-06-09,2024-06-07,6.3e+22,6 FLOP / parameter / token * 1.5 * 10^9  parameters * 7 * 10^12 tokens = 6.3e+22 FLOP,Operation counting,,,Confident,Yes,Hello Qwen2,"https://qwenlm.github.io/blog/qwen2/
-https://arxiv.org/abs/2407.10671",passed,pending_external_source_check,,,,,,,False
+https://arxiv.org/abs/2407.10671",passed,pending_checkpoint_and_training_telemetry_check,,,,,,,False
 Qwen/Qwen2-57B-A14B,Qwen2-57B-A14B,Alibaba,Qwen,57.409,57000000000.0,57B parameters (table 1),1.0071754385964913,2024-06-13,2024-06-07,3.7800000000001e+23,"""For MoE models, 57B-A14B denotes that the model has 57B parameters in total and for each token 14B parameters are active"" (page 5)
 
 C ~= 6 FLOP * 14e9 * 4.5e12 = 3.78e23",Operation counting,,,Confident,Yes,Hello Qwen2,"https://qwenlm.github.io/blog/qwen2/
-https://arxiv.org/abs/2407.10671",passed,pending_external_source_check,,,,,,,False
+https://arxiv.org/abs/2407.10671",passed,pending_checkpoint_and_training_telemetry_check,,,,,,,False
 Qwen/Qwen2-7B,Qwen2-7B,Alibaba,Qwen,7.616,7000000000.0,7B parameters (table 1),1.088,2024-06-09,2024-06-07,2.9400000000001e+23,"7 billion params, 7 trillion tokens
 
 6 FLOP * 7 billion * 7 trillion ~= 2.94e23 FLOP",Operation counting,,,Confident,Yes,Hello Qwen2,"https://qwenlm.github.io/blog/qwen2/
-https://arxiv.org/abs/2407.10671",passed,pending_external_source_check,,,,,,,False
+https://arxiv.org/abs/2407.10671",passed,pending_checkpoint_and_training_telemetry_check,,,,,,,False
 Qwen/Qwen2.5-1.5B,Qwen2.5-1.5B,Alibaba,Qwen,1.5,1540000000.0,1.54B,0.974025974025974,2024-09-19,2024-09-19,1.6632e+23,"Training dataset size was 18 trillion
 
-6ND = 6 * 1.54B billion parameters * 18 trillion tokens = 1.6632e+23",Operation counting,,,Confident,Yes,Qwen2.5-LLM: Extending the boundary of LLMs,https://qwenlm.github.io/blog/qwen2.5-llm/,passed,pending_external_source_check,,,,,,,False
+6ND = 6 * 1.54B billion parameters * 18 trillion tokens = 1.6632e+23",Operation counting,,,Confident,Yes,Qwen2.5-LLM: Extending the boundary of LLMs,https://qwenlm.github.io/blog/qwen2.5-llm/,passed,pending_checkpoint_and_training_telemetry_check,,,,,,,False
 Qwen/Qwen2.5-14B,Qwen2.5-14B,Alibaba,Qwen,14.77,14700000000.0,"14.7B according to the model card
 https://qwenlm.github.io/blog/qwen2.5-llm/",1.0047619047619047,2024-09-19,2024-09-19,1.58760000000001e+24,"Training dataset size was 18 trillion
 
-6ND = 6 * 14.7 billion parameters * 18 trillion tokens = 1.59e24",Operation counting,,,Confident,Yes,Qwen2.5: A Party of Foundation Models!,https://qwenlm.github.io/blog/qwen2.5/,passed,pending_external_source_check,,,,,,,False
-Qwen/Qwen2.5-32B,Qwen2.5-32B,Alibaba,Qwen,32.764,32500000000.0,32.5B,1.0081230769230771,2024-09-19,2024-09-17,3.51e+24,6 FLOP / parameter / token * 32.5B parameters * 18 trillion tokens = 3.51 × 10^24 FLOP,Operation counting,,,Confident,Yes,Qwen2.5: A Party of Foundation Models!,https://qwenlm.github.io/blog/qwen2.5/,passed,pending_external_source_check,,,,,,,False
+6ND = 6 * 14.7 billion parameters * 18 trillion tokens = 1.59e24",Operation counting,,,Confident,Yes,Qwen2.5: A Party of Foundation Models!,https://qwenlm.github.io/blog/qwen2.5/,passed,pending_checkpoint_and_training_telemetry_check,,,,,,,False
+Qwen/Qwen2.5-32B,Qwen2.5-32B,Alibaba,Qwen,32.764,32500000000.0,32.5B,1.0081230769230771,2024-09-19,2024-09-17,3.51e+24,6 FLOP / parameter / token * 32.5B parameters * 18 trillion tokens = 3.51 × 10^24 FLOP,Operation counting,,,Confident,Yes,Qwen2.5: A Party of Foundation Models!,https://qwenlm.github.io/blog/qwen2.5/,passed,pending_checkpoint_and_training_telemetry_check,,,,,,,False
 Qwen/Qwen2.5-7B,Qwen2.5-7B,Alibaba,Qwen,7.616,7610000000.0,7.61B,1.0007884362680683,2024-09-19,2024-09-19,8.2188e+23,"Training dataset size was 18 trillion
 
-6ND = 6 * 7.61 billion parameters * 18 trillion tokens = 8.2188e+23",Operation counting,,,Confident,Yes,Qwen2.5: A Party of Foundation Models!,https://qwenlm.github.io/blog/qwen2.5/,passed,pending_external_source_check,,,,,,,False
+6ND = 6 * 7.61 billion parameters * 18 trillion tokens = 8.2188e+23",Operation counting,,,Confident,Yes,Qwen2.5: A Party of Foundation Models!,https://qwenlm.github.io/blog/qwen2.5/,passed,pending_checkpoint_and_training_telemetry_check,,,,,,,False
 microsoft/phi-1,Phi-1,Microsoft Research,microsoft,1.418,1300000000.0,"1.3B
 The architecture for our 1.3B parameter phi-1 model consists of 24 layers, hidden dimension of 2048, MLP-inner dimension of 8192, and 32 attention heads of dimension 64 each.",1.0907692307692307,2024-06-13,2023-10-02,3.3234195e+20,"6ND = 6 *1.3*10^9 parameters * 51 * 10^9 tokens = 3.978e+20
 
 312000000000000 FLOP/s * 8 GPUs *103 hours *3600 sec / hour *0.3 [assumed utilization] = 2.7765504e+20
 
 geometric mean sqrt(2.7765504e+20*3.978e+20) = 3.3234195e+20
-","Operation counting,Hardware",,,Confident,Yes,Textbooks Are All You Need,https://arxiv.org/abs/2306.11644,passed,pending_external_source_check,,,,,,,False
+","Operation counting,Hardware",,,Confident,Yes,Textbooks Are All You Need,https://arxiv.org/abs/2306.11644,passed,pending_checkpoint_and_training_telemetry_check,,,,,,,False
 microsoft/phi-4,Phi-4,Microsoft Research,microsoft,14.66,14000000000.0,"14B parameters, dense decoder-only Transformer model",1.0471428571428572,2025-01-08,2024-12-12,9.3202015e+23,"6ND = 6* 14*10^9 parameters * 10*10^12 tokens = 8.4e+23 FLOP
 
 989500000000000 FLOP / sec [assumed bf16 precision] * 1920 GPUs * 504 hours * 3600 sec / hour * 0.3 [assumed utilization] = 1.0341209e+24 FLOP
 
 geometric mean
-sqrt(8.4e+23 * 1.0341209e+24) = 9.3202015e+23","Operation counting,Hardware",,,Confident,Yes,Phi-4 Technical Report,https://arxiv.org/abs/2412.08905,passed,pending_external_source_check,,,,,,,False
-mosaicml/mpt-7b,MPT-7B,MosaicML,mosaicml,7.0,7000000000.0,,1.0,2024-06-08,2023-05-05,4.2e+22,"""As shown in Table 3, nearly all of the training budget was spent on the base MPT-7B model, which took ~9.5 days to train on 440xA100-40GB GPUs, and cost ~$200k.""",Hardware,,,Confident,Yes,"""Introducing MPT-7B: A New Standard for Open-Source, Commercially Usable LLMs""",https://www.mosaicml.com/blog/mpt-7b,passed,pending_external_source_check,,,,,,,False
+sqrt(8.4e+23 * 1.0341209e+24) = 9.3202015e+23","Operation counting,Hardware",,,Confident,Yes,Phi-4 Technical Report,https://arxiv.org/abs/2412.08905,passed,pending_checkpoint_and_training_telemetry_check,,,,,,,False
+mosaicml/mpt-7b,MPT-7B,MosaicML,mosaicml,7.0,7000000000.0,,1.0,2024-06-08,2023-05-05,4.2e+22,"""As shown in Table 3, nearly all of the training budget was spent on the base MPT-7B model, which took ~9.5 days to train on 440xA100-40GB GPUs, and cost ~$200k.""",Hardware,,,Confident,Yes,"""Introducing MPT-7B: A New Standard for Open-Source, Commercially Usable LLMs""",https://www.mosaicml.com/blog/mpt-7b,passed,pending_checkpoint_and_training_telemetry_check,,,,,,,False
 tiiuae/falcon-7b,Falcon-7B,Technology Innovation Institute,tiiuae,7.0,7000000000.0,7B,1.0,2024-06-09,2023-04-24,6.3e+22,"6ND = 6 * 7B * 1.5T = 6.3e22
 ""Falcon-7B is a 7B parameters causal decoder-only model built by TII and trained on 1,500B tokens of RefinedWeb enhanced with curated corpora. It is made available under the Apache 2.0 license.""
 
 Table 1 from https://arxiv.org/pdf/2311.16867 Falcon paper
 
-730 petaflop-days * 1e15 * 24 * 3600 = 6.3072e+22 FLOPs","Operation counting,Reported",,,Confident,Yes,Falcon-7B ,https://huggingface.co/tiiuae/falcon-7b,passed,pending_external_source_check,,,,,,,False
+730 petaflop-days * 1e15 * 24 * 3600 = 6.3072e+22 FLOPs","Operation counting,Reported",,,Confident,Yes,Falcon-7B ,https://huggingface.co/tiiuae/falcon-7b,passed,pending_checkpoint_and_training_telemetry_check,,,,,,,False

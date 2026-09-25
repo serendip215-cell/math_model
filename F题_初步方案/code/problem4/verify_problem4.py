@@ -38,8 +38,12 @@ def main() -> None:
           panel.license_only_unverified, "Epoch_AI_Open_Weights"].isna().all() and
           panel.loc[panel.license_explicit_no, "Epoch_AI_Open_Weights"].eq("No").all())
     check("Panel cutoff", pd.to_datetime(panel.submission).max() <= pd.Timestamp("2025-03-13"))
+    phi = panel[panel.Model.isin(["microsoft/phi-1", "microsoft/phi-4"])]
+    check("Author-supported Phi stage correction preserved with raw labels",
+          len(phi) == 2 and phi.type_group_raw.eq("pretrained").all() and
+          phi.type_group.eq("posttrained").all())
     check("Pretrained late count", len(panel[panel.strict_open &
-          panel.type_group.eq("pretrained") & pd.to_datetime(panel.submission).ge("2025-01-01")]) == 5)
+          panel.type_group.eq("pretrained") & pd.to_datetime(panel.submission).ge("2025-01-01")]) == 4)
     check("Flow raw row count", int(flow.iloc[0].rows) == len(raw))
     publication = read("publication_submission_audit.csv")
     check("Publication audit totals strict pre and post", publication.models.sum() ==
@@ -62,15 +66,19 @@ def main() -> None:
     check("Known developer id agrees with repository namespace",
           has_dev.developer_id_matches.all())
     usable = read("c4_compute_linked_subset.csv")
-    check("Compute subset has verified positive compute", usable.usable_compute.all() and
+    check("Compute subset has positive recorded compute", usable.usable_compute.all() and
           pd.to_numeric(usable["Training compute (FLOP)"], errors="coerce").gt(0).all())
     check("Compute subset only strict pretrained", usable.strict_open.all() and
           usable.type_group.eq("pretrained").all())
     review = read("c4_manual_review_queue.csv")
-    check("Manual review queue matches compute subset", len(review) == len(usable) and
-          set(review.Model_C1) == set(usable.Model_C1) and review.Model_C4.is_unique)
-    check("Manual review not falsely marked complete", review.manual_review_status.eq(
-          "pending_external_source_check").all() and review.repository_revision_evidence.isna().all())
+    raw_candidates = links[links.review_candidate]
+    check("Source review queue retains original-label candidates",
+          len(review) == 29 and len(raw_candidates) == 29 and
+          set(review.Model_C1) == set(raw_candidates.Model_C1) and review.Model_C4.is_unique)
+    check("Checkpoint and training telemetry review not falsely marked complete",
+          review.manual_review_status.eq(
+          "pending_checkpoint_and_training_telemetry_check").all() and
+          review.repository_revision_evidence.isna().all())
     raw_c4 = pd.read_csv(DATA / "epoch_all_ai_models.csv", low_memory=False)
     original = review.merge(raw_c4[["Model", "Link", "Training compute notes"]],
                             left_on="Model_C4", right_on="Model", suffixes=("_saved", "_raw"))
@@ -80,6 +88,28 @@ def main() -> None:
           original.Link_saved.fillna("").eq(normalized_raw_link.fillna("")).all() and
           original["Training compute notes_saved"].fillna("").eq(
               original["Training compute notes_raw"].fillna("")).all())
+    source_review = read("c4_external_source_review.csv")
+    check("External source review covers every original candidate once", len(source_review) == len(review)
+          and source_review.Model_C1.is_unique and
+          set(source_review.Model_C1) == set(review.Model_C1) and
+          source_review.primary_evidence_url.str.startswith("https://").all())
+    source_counts = source_review.source_review_status.value_counts().to_dict()
+    check("Source review keeps three evidence classes distinct", source_counts == {
+        "source_supported_estimate": 15, "not_comparable": 5,
+        "insufficient_evidence": 9})
+    approximate = source_review[source_review.source_review_status.eq(
+        "source_supported_estimate")]
+    check("Source-derived FLOPs numerically reconcile with C4 approximate values",
+          approximate.source_derived_flops.notna().all() and
+          approximate.source_vs_c4_relative_difference.le(.05).all() and
+          np.allclose(approximate.source_vs_c4_relative_difference,
+              (approximate["Training compute (FLOP)"].astype(float) -
+               approximate.source_derived_flops).abs() / approximate.source_derived_flops))
+    not_comparable = {"01-ai/Yi-1.5-34B", "01-ai/Yi-1.5-9B",
+        "Qwen/Qwen2-57B-A14B", "microsoft/phi-1", "microsoft/phi-4"}
+    check("Stage-mismatched records excluded from supported subset",
+          set(source_review.loc[source_review.source_review_status.eq(
+              "not_comparable"), "Model_C1"]) == not_comparable)
 
     holdout = read("future_holdout_predictions.csv")
     metrics = read("model_holdout_metrics.csv")
@@ -156,6 +186,23 @@ def main() -> None:
           compute.family_bootstrap_ci_low.le(compute.family_bootstrap_ci_high).all() and
           compute.family_bootstrap_ci_low.ge(-1).all() and
           compute.family_bootstrap_ci_high.le(1).all())
+    source_compute = read("linked_compute_source_supported_sensitivity.csv")
+    chosen = source_review.loc[source_review.source_review_status.eq(
+        "source_supported_estimate"), "Model_C1"]
+    chosen_rows = usable[usable.Model_C1.isin(chosen)].copy()
+    chosen_rows = chosen_rows.merge(panel[["Model", "Y"]],
+        left_on="Model_C1", right_on="Model", validate="one_to_one")
+    chosen_rows["log_compute"] = np.log10(chosen_rows["Training compute (FLOP)"].astype(float))
+    expected_rho = chosen_rows[["log_compute", "Y"]].corr(method="spearman").iloc[0, 1]
+    check("Source-supported compute subset correlation independently recomputed",
+          len(chosen_rows) == 15 and source_compute.n.eq(15).all() and
+          np.isclose(source_compute.loc[source_compute.variable.eq("log_compute"),
+                                       "spearman"].iloc[0], expected_rho))
+    check("Source-supported compute uncertainty includes zero",
+          source_compute.loc[source_compute.variable.eq("log_compute"),
+                             "family_bootstrap_ci_low"].iloc[0] < 0 <
+          source_compute.loc[source_compute.variable.eq("log_compute"),
+                             "family_bootstrap_ci_high"].iloc[0])
 
     c8audit = read("c8_file_audit.csv")
     c8 = read("c8_bbh_leaf_aggregation.csv")
@@ -208,7 +255,7 @@ def main() -> None:
              "| 检查 | 结果 | 说明 |", "| --- | --- | --- |"]
     lines += [f"| {name} | {'通过' if ok else '失败'} | {detail} |" for name, ok, detail in checks]
     lines += ["", "## 验收范围", "",
-              "这些检查独立读取原始 C2/C8 与保存产物，核对口径、守门条件和数值回代。它们不把观察性分解升级为因果识别，也不证明未来外推可信。", ""]
+              "这些检查独立读取原始 C2/C4/C8 与保存产物，核对口径、守门条件和数值回代。外部来源网页的具体文字由逐行来源审计记录，本脚本只检查审计文件的覆盖和结果一致性；它不证明 checkpoint 哈希一致，不把观察性分解升级为因果识别，也不证明未来外推可信。", ""]
     REPORT.write_text("\n".join(lines), encoding="utf-8")
     if not all(ok for _, ok, _ in checks):
         raise AssertionError("Question 4 verification failed: " +

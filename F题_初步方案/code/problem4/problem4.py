@@ -9,6 +9,7 @@ import hashlib
 import json
 import math
 import re
+import sys
 from pathlib import Path
 
 import matplotlib
@@ -22,6 +23,8 @@ from sklearn.isotonic import IsotonicRegression
 from sklearn.linear_model import Ridge
 from sklearn.model_selection import GroupKFold
 from sklearn.preprocessing import StandardScaler
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from c4_source_review import adjudicate
 
 PROJECT = Path(__file__).resolve().parents[2]
 DATA = PROJECT.parent / "F题_清洗后" / "C_efficiency_evolution"
@@ -114,7 +117,12 @@ def prepare_panel(c2: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.Data
     a = a.sort_values(["Model", "submission"]).drop_duplicates("Model", keep="first")
     flow.append({"step": "earliest valid submission per model", "rows": len(a),
                  "unique_models": a.Model.nunique()})
-    a["type_group"] = a.Type.map(model_type)
+    a["type_group_raw"] = a.Type.map(model_type)
+    a["type_group"] = a.type_group_raw.copy()
+    # Primary author documents identify these released checkpoints as post-trained.
+    # See c4_source_review.py for the paper/model-card evidence.
+    a.loc[a.Model.isin(["microsoft/phi-1", "microsoft/phi-4"]),
+          "type_group"] = "posttrained"
     a["family"] = a.Model.map(family)
     a["namespace"] = a.Model.astype(str).str.split("/").str[0].str.lower()
     a["license_permissive"] = a["Hub License"].isin(PERMISSIVE)
@@ -148,7 +156,7 @@ def prepare_panel(c2: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame, pd.Data
     a["submission"] = a.submission.dt.strftime("%Y-%m-%d")
     a["epoch_publication"] = a.epoch_publication.dt.strftime("%Y-%m-%d")
     save(a[["Model", "submission", "N_B", "Y", *TASKS, "Hub License",
-            "Epoch_AI_Open_Weights", "type_group", "family", "namespace",
+            "Epoch_AI_Open_Weights", "type_group_raw", "type_group", "family", "namespace",
             "license_permissive", "strict_open", "license_only_unverified",
             "license_explicit_no", "epoch_publication", "publication_lag_days",
             "t_month", "logN"]], "audited_leaderboard_panel.csv")
@@ -189,16 +197,19 @@ def link_c4(panel: pd.DataFrame, c4: pd.DataFrame) -> tuple[pd.DataFrame, pd.Dat
                                merged.N_consistent &
                                merged.date_consistent & merged.language_domain &
                                merged.source_confident & merged.weight_agreement)
+    merged["review_candidate"] = (merged.accepted_link & merged.strict_open &
+                                 merged.type_group_raw.eq("pretrained") &
+                                 pd.to_numeric(merged["Training compute (FLOP)"], errors="coerce").gt(0))
     merged["usable_compute"] = (merged.accepted_link & merged.strict_open &
                                  merged.type_group.eq("pretrained") &
                                  pd.to_numeric(merged["Training compute (FLOP)"], errors="coerce").gt(0))
     audit_cols = ["Model_C1", "Model_C4", "match_key", "N_B", "Parameters", "N_ratio",
                   "submission", "Publication date", "Confidence", "Domain", "Open model weights?",
-                  "strict_open", "type_group", "Hugging Face developer id",
+                  "strict_open", "type_group_raw", "type_group", "Hugging Face developer id",
                   "C4_key_unique", "C1_key_unique", "developer_id_available",
                   "developer_id_matches", "source_identity_supported", "N_consistent",
                   "date_consistent", "language_domain", "source_confident",
-                  "weight_agreement", "accepted_link", "usable_compute",
+                  "weight_agreement", "accepted_link", "review_candidate", "usable_compute",
                   "Training compute (FLOP)", "Training dataset size (total)"]
     save(merged[audit_cols], "c1_c4_link_audit.csv")
     use = merged[merged.usable_compute].copy()
@@ -208,16 +219,16 @@ def link_c4(panel: pd.DataFrame, c4: pd.DataFrame) -> tuple[pd.DataFrame, pd.Dat
                    "Publication date", "Training compute (FLOP)", "Training compute notes",
                    "Training compute estimation method", "Base model", "Foundation model",
                    "Confidence", "Open model weights?", "Reference", "Link"]
-    review = use[review_cols].copy()
+    review = merged.loc[merged.review_candidate, review_cols].copy()
     review["Link"] = review["Link"].astype("string").str.replace(
         r"[ \t]+(?=\r?\n|$)", "", regex=True)
     review["automated_rule_status"] = "passed"
-    review["manual_review_status"] = "pending_external_source_check"
+    review["manual_review_status"] = "pending_checkpoint_and_training_telemetry_check"
     for col in ["repository_revision_evidence", "version_identity_review",
                 "training_stage_review", "compute_source_review",
                 "historical_open_status_review", "reviewer_notes"]:
         review[col] = pd.NA
-    review["owner_id_missing"] = use["Hugging Face developer id"].isna().to_numpy()
+    review["owner_id_missing"] = review["Hugging Face developer id"].isna()
     review = review.sort_values(["owner_id_missing", "Model_C1"], ascending=[False, True])
     save(review, "c4_manual_review_queue.csv")
     standalone = c4.copy()
@@ -630,13 +641,14 @@ def monthly_frontier(panel: pd.DataFrame) -> pd.DataFrame:
     return save(monthly, "observed_monthly_frontier.csv")
 
 
-def compute_sensitivity(links: pd.DataFrame) -> pd.DataFrame:
+def compute_sensitivity(links: pd.DataFrame,
+                        filename: str = "linked_compute_sensitivity.csv") -> pd.DataFrame:
     sub = links.copy()
     sub["log_compute"] = np.log10(pd.to_numeric(sub["Training compute (FLOP)"], errors="coerce"))
     sub = sub[np.isfinite(sub.log_compute)].copy()
     if len(sub) < 10 or sub.Model_C1.nunique() < 10:
         return save(pd.DataFrame([{"status": "too_few_verified_links", "n": len(sub)}]),
-                    "linked_compute_sensitivity.csv")
+                    filename)
     rows = []
     boot_rng = np.random.default_rng(20260927)
     for variable in ["log_compute", "logN"]:
@@ -646,6 +658,8 @@ def compute_sensitivity(links: pd.DataFrame) -> pd.DataFrame:
         for _ in range(1000):
             sampled = boot_rng.choice(families, size=len(families), replace=True)
             draw = pd.concat([sub[sub.family.eq(g)] for g in sampled], ignore_index=True)
+            if draw[variable].nunique() < 2 or draw.Y.nunique() < 2:
+                continue
             statistic = spearmanr(draw[variable], draw.Y).statistic
             if np.isfinite(statistic): draws.append(float(statistic))
         rows.append({"variable": variable, "n": len(sub), "families": sub.family.nunique(),
@@ -655,7 +669,7 @@ def compute_sensitivity(links: pd.DataFrame) -> pd.DataFrame:
                      "family_bootstrap_valid_replicates": len(draws),
                      "min": float(sub[variable].min()), "max": float(sub[variable].max()),
                      "status": "association_only_nonrepresentative_linked_subset"})
-    return save(pd.DataFrame(rows), "linked_compute_sensitivity.csv")
+    return save(pd.DataFrame(rows), filename)
 
 
 def conditional_scenarios(panel: pd.DataFrame, fits: dict, holdout: pd.DataFrame,
@@ -829,7 +843,9 @@ def write_report(flow: pd.DataFrame, links: pd.DataFrame, usable: pd.DataFrame,
                  temporal_comparison: pd.DataFrame,
                  publication_audit: pd.DataFrame, manual_review: pd.DataFrame,
                  rolling_audit: pd.DataFrame, rolling_metrics: pd.DataFrame,
-                 family_influence: pd.DataFrame) -> None:
+                 family_influence: pd.DataFrame,
+                 source_review: pd.DataFrame,
+                 source_compute: pd.DataFrame) -> None:
     metric_cols = ["stratum", "variant", "n", "families", "train_n",
                    "future_holdout_n", "future_holdout_families", "future_holdout_rmse",
                    "future_holdout_family_balanced_rmse", "future_holdout_bias", "status"]
@@ -854,8 +870,8 @@ def write_report(flow: pd.DataFrame, links: pd.DataFrame, usable: pd.DataFrame,
              "", "### 提交日与 Epoch 元数据发布日期", "",
              "Epoch 元数据发布日期可能对应匹配的基础模型，不能直接等同于衍生模型发布时间；晚于提交日的日期更不能视为历史可得信息。下表仅审计两日期差异，主模型的时间变量仍是排行榜提交日。",
              "", tbl(publication_audit), "",
-             f"C1/C4 名称候选 {len(links)} 行，规则接受 {int(links.accepted_link.sum())} 行，严格开放预训练且算力可用 {len(usable)} 行。候选和接受均不等于人工逐项核验。",
-             f"这 {len(manual_review)} 条算力连接的原始来源、参数与算力备注已汇成 `c4_manual_review_queue.csv`；人工复核状态全部为待核，开发者 ID 缺失 {int(manual_review.owner_id_missing.sum())} 条。当前算力相关仍是规则连接子样本的探索性分析。",
+             f"C1/C4 名称候选 {len(links)} 行，规则接受 {int(links.accepted_link.sum())} 行。原始标签下预训练且算力可用 {len(manual_review)} 行；作者资料表明 phi-1 与 phi-4 发布权重经过后训练，纠正分层后严格开放预训练且算力可用 {len(usable)} 行。候选和接受均不等于逐 checkpoint 核验。",
+             f"原始标签下这 {len(manual_review)} 条算力连接的来源、参数与算力备注已汇成 `c4_manual_review_queue.csv`；其中开发者 ID 缺失 {int(manual_review.owner_id_missing.sum())} 条。外部来源逐条复核另见 `c4_external_source_review.csv`；它只核对公开资料与 C4 估算口径，未取得逐仓库 checkpoint 哈希或训练遥测。",
              "", "### C8 逐任务核算", "",
              f"扫描 {c8['json_files']} 个 JSON；解析 {c8['parsed']} 个；模型去重后 {c8['models_latest']} 个；与 C1 连接 {c8['joined_to_C1']} 个，其中同一叶任务集合 {c8['common_task_set_joined']} 个。C8 叶任务宏平均与 C1 BBH **数值标尺未证实相同**，因此只做覆盖与秩序审计，不强行回代相等。重复版本以记录时间及文件名排序取末份。",
              "", "## 规模、时间残差与验证", "",
@@ -896,7 +912,11 @@ def write_report(flow: pd.DataFrame, links: pd.DataFrame, usable: pd.DataFrame,
                                    "future_holdout_rmse", "future_holdout_bias"]]), "",
               "## 算力审计与观测前沿", "",
               "C4 连接子样本只报告关联与按家族重抽样的 Spearman 区间，不使用把相关模型当独立样本的普通 p 值；区间也不消除年代、架构等混杂。C4 独立资源趋势不与 Benchmark 行序拼接。每月观测最大值和 90% 分位随样本量列出；稀疏月份的分位数尤其不稳定。",
-              "", tbl(compute), "", tbl(monthly[["type_group", "month", "models", "families", "max_score", "q90_score"]]), "",
+              "", tbl(compute), "",
+              "公开来源复核把 29 条分为近似预训练算力有来源支持、训练阶段/算力口径不可比、证据不足三类。`source_supported_estimate` 不表示训练方直接测得 FLOPs；也不代表已核对 checkpoint 哈希。下表是来源支持子集的独立敏感性，仍受小样本、家族聚集、年代和架构混杂限制，不作因果推断。",
+              "", tbl(source_review.groupby("source_review_status", as_index=False).size()), "",
+              tbl(source_compute), "",
+              tbl(monthly[["type_group", "month", "models", "families", "max_score", "q90_score"]]), "",
               "## Loss 桥接", "",
               f"C6 高可比 n={bridge_info['high_n']}、独立家族 1。Loss 范围 {bridge_info['high_loss_range']}，得分范围 {bridge_info['high_score_range']}。逐点留一单调映射 RMSE={bridge_info['loo_monotone_rmse']:.4f}，常数基线 RMSE={bridge_info['loo_constant_rmse']:.4f}。这个留一不检验跨家族泛化；前沿数值桥接未识别。",
               "", "## 12/24 个月条件情景", "",
@@ -904,7 +924,7 @@ def write_report(flow: pd.DataFrame, links: pd.DataFrame, usable: pd.DataFrame,
               "", tbl(scenario_view), "", "## 图表与可复算文件", "",
               "图表在 `outputs/problem4/figures/`，全部由同一脚本生成。原始合同、连接逐行理由、C8 文件审计、留出指标、分解支持和重抽样、资源情景均在 `outputs/problem4/results/`。",
               "", "## 结论边界", "",
-              "排行榜提交不是随机实验，也不等于模型发布日期；主结果仅覆盖许可证和权重可核的模型。严格开放预训练的晚期样本较少。粗粒度家族划分与模型重复提交可能缩小有效样本量。C4 的同名归一化连接仍应人工复核后用于正式论文。C8 与 C1 BBH 标尺不同。C6 桥接不支持前三问 Loss 向当前或未来排行榜前沿转译。长期情景没有同长度回测；不得写成已经验证的预测。", ""]
+              "排行榜提交不是随机实验，也不等于模型发布日期；主结果仅覆盖许可证和权重可核的模型。严格开放预训练的晚期样本较少。粗粒度家族划分与模型重复提交可能缩小有效样本量。C4 的公开来源与估算口径已分级复核，但没有逐 checkpoint 身份、完整训练遥测的确认；来源支持子集也只能用于探索性关联。C8 与 C1 BBH 标尺不同。C6 桥接不支持前三问 Loss 向当前或未来排行榜前沿转译。长期情景没有同长度回测；不得写成已经验证的预测。", ""]
     REPORT.write_text("\n".join(lines), encoding="utf-8")
 
 
@@ -921,6 +941,12 @@ def main() -> None:
     support, decomp, overlap_sensitivity = decompose(panel, fits)
     monthly = monthly_frontier(panel)
     compute = compute_sensitivity(usable)
+    source_review = adjudicate(pd.read_csv(RESULTS / "c4_manual_review_queue.csv"))
+    save(source_review, "c4_external_source_review.csv")
+    source_usable = usable[usable.Model_C1.isin(source_review.loc[
+        source_review.source_review_status.eq("source_supported_estimate"), "Model_C1"])].copy()
+    source_compute = compute_sensitivity(source_usable,
+        "linked_compute_source_supported_sensitivity.csv")
     scenarios = conditional_scenarios(panel, fits, metrics, monthly)
     tasks = task_sensitivity(panel)
     task_models = task_model_validation(panel)
@@ -931,7 +957,8 @@ def main() -> None:
                  scenarios, tasks, task_models,
                  temporal_comparison, publication_audit,
                  pd.read_csv(RESULTS / "c4_manual_review_queue.csv"),
-                 rolling_audit, rolling_metrics, family_influence)
+                 rolling_audit, rolling_metrics, family_influence,
+                 source_review, source_compute)
     print(json.dumps({"strict_pretrained": int((panel.strict_open &
           panel.type_group.eq("pretrained")).sum()), "strict_posttrained": int((panel.strict_open &
           panel.type_group.eq("posttrained")).sum()), "C4_usable_compute": len(usable),

@@ -19,8 +19,8 @@
 | strict open weight + license | 236 | 236 | 24 |
 | permissive license + unknown weight status | 1485 | 1485 | 273 |
 | permissive license + explicit No weight status | 4 | 4 | 3 |
-| strict pretrained | 42 | 42 | 13 |
-| strict posttrained | 141 | 141 | 17 |
+| strict pretrained | 40 | 40 | 13 |
+| strict posttrained | 143 | 143 | 17 |
 
 许可证符合预设集合但权重状态缺失的模型，与权重状态明确为 No 的模型分别计数；后者不进入‘状态未知’敏感性层。
 
@@ -30,15 +30,15 @@ Epoch 元数据发布日期可能对应匹配的基础模型，不能直接等�
 
 | type_group | period | models | publication_date_available | publication_after_submission | publication_over_180_days_older | median_submission_minus_publication_days |
 | --- | --- | --- | --- | --- | --- | --- |
-| posttrained | early | 33 | 33 | 1 | 11 | 71 |
-| posttrained | late | 67 | 67 | 6 | 22 | 104 |
+| posttrained | early | 34 | 34 | 1 | 12 | 86 |
+| posttrained | late | 68 | 68 | 6 | 22 | 94.5 |
 | posttrained | middle | 41 | 41 | 3 | 7 | 59 |
-| pretrained | early | 30 | 30 | 1 | 18 | 253 |
-| pretrained | late | 5 | 5 | 0 | 2 | 168 |
+| pretrained | early | 29 | 29 | 1 | 17 | 251 |
+| pretrained | late | 4 | 4 | 0 | 2 | 416.5 |
 | pretrained | middle | 7 | 7 | 0 | 0 | 2 |
 
-C1/C4 名称候选 109 行，规则接受 88 行，严格开放预训练且算力可用 29 行。候选和接受均不等于人工逐项核验。
-这 29 条算力连接的原始来源、参数与算力备注已汇成 `c4_manual_review_queue.csv`；人工复核状态全部为待核，开发者 ID 缺失 12 条。当前算力相关仍是规则连接子样本的探索性分析。
+C1/C4 名称候选 109 行，规则接受 88 行。原始标签下预训练且算力可用 29 行；作者资料表明 phi-1 与 phi-4 发布权重经过后训练，纠正分层后严格开放预训练且算力可用 27 行。候选和接受均不等于逐 checkpoint 核验。
+原始标签下这 29 条算力连接的来源、参数与算力备注已汇成 `c4_manual_review_queue.csv`；其中开发者 ID 缺失 12 条。外部来源逐条复核另见 `c4_external_source_review.csv`；它只核对公开资料与 C4 估算口径，未取得逐仓库 checkpoint 哈希或训练遥测。
 
 ### C8 逐任务核算
 
@@ -50,12 +50,12 @@ C1/C4 名称候选 109 行，规则接受 88 行，严格开放预训练且算�
 
 | stratum | variant | n | families | train_n | future_holdout_n | future_holdout_families | future_holdout_rmse | future_holdout_family_balanced_rmse | future_holdout_bias | status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| strict_pretrained | N_only | 42 | 13 | 37 | 5 | 4 | 11.834 | 13.18 | -7.5294 | fit |
-| strict_pretrained | N_plus_time | 42 | 13 | 37 | 5 | 4 | 12.003 | 13.131 | -5.8829 | fit |
-| strict_pretrained | training_mean | 42 | 13 | 37 | 5 | 4 | 12.544 | 13.531 | -5.2019 | baseline |
-| strict_posttrained | N_only | 141 | 17 | 74 | 67 | 6 | 8.8211 | 8.0189 | -4.0436 | fit |
-| strict_posttrained | N_plus_time | 141 | 17 | 74 | 67 | 6 | 10.839 | 11.736 | 5.7083 | fit |
-| strict_posttrained | training_mean | 141 | 17 | 74 | 67 | 6 | 9.7967 | 8.901 | -0.20245 | baseline |
+| strict_pretrained | N_only | 40 | 13 | 36 | 4 | 3 | 10.316 | 11.828 | -5.1806 | fit |
+| strict_pretrained | N_plus_time | 40 | 13 | 36 | 4 | 3 | 10.593 | 11.796 | -3.1832 | fit |
+| strict_pretrained | training_mean | 40 | 13 | 36 | 4 | 3 | 11.27 | 12.256 | -2.153 | baseline |
+| strict_posttrained | N_only | 143 | 17 | 75 | 68 | 6 | 8.8625 | 8.0452 | -4.1995 | fit |
+| strict_posttrained | N_plus_time | 143 | 17 | 75 | 68 | 6 | 11.097 | 12.07 | 6.0515 | fit |
+| strict_posttrained | training_mean | 143 | 17 | 75 | 68 | 6 | 9.7613 | 8.8155 | -0.52645 | baseline |
 | license_only_pretrained | N_only | 104 | 27 | 66 | 38 | 7 | 3.6123 | 4.6523 | -1.3093 | fit |
 | license_only_pretrained | N_plus_time | 104 | 27 | 66 | 38 | 7 | 3.0815 | 4.6205 | -0.38499 | fit |
 | license_only_pretrained | training_mean | 104 | 27 | 66 | 38 | 7 | 5.867 | 5.9931 | 2.3475 | baseline |
@@ -65,8 +65,8 @@ C1/C4 名称候选 109 行，规则接受 88 行，严格开放预训练且算�
 | stratum | holdout_families | delta_family_balanced_rmse_time_minus_N | family_bootstrap_ci_low | family_bootstrap_ci_high | interpretation |
 | --- | --- | --- | --- | --- | --- |
 | license_only_pretrained | 7 | -0.031781 | -0.93782 | 1.0308 | descriptive_model_comparison_not_independent_long_horizon_test |
-| strict_posttrained | 6 | 3.7171 | -1.1127 | 7.535 | descriptive_model_comparison_not_independent_long_horizon_test |
-| strict_pretrained | 4 | -0.048415 | -0.61043 | 1.0737 | descriptive_model_comparison_not_independent_long_horizon_test |
+| strict_posttrained | 6 | 4.0248 | -0.86376 | 7.9002 | descriptive_model_comparison_not_independent_long_horizon_test |
+| strict_pretrained | 3 | -0.031828 | -0.6141 | 3.1543 | descriptive_model_comparison_not_independent_long_horizon_test |
 
 ### 逐月短期留出
 
@@ -74,38 +74,38 @@ C1/C4 名称候选 109 行，规则接受 88 行，严格开放预训练且算�
 
 | stratum | target_month | train_models | train_families | test_models | test_families | unseen_test_families | test_logN_within_train_minmax_fraction | full_calendar_month | descriptive_screen_pass |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| strict_pretrained | 2024-07 | 27 | 10 | 1 | 1 | 1 | 1 | True | False |
-| strict_pretrained | 2024-08 | 28 | 11 | 2 | 2 | 1 | 0.5 | True | False |
-| strict_pretrained | 2024-09 | 30 | 12 | 6 | 3 | 1 | 1 | True | False |
-| strict_pretrained | 2024-10 | 36 | 13 | 0 | 0 | 0 |  | True | False |
-| strict_pretrained | 2024-11 | 36 | 13 | 1 | 1 | 0 | 1 | True | False |
-| strict_pretrained | 2024-12 | 37 | 13 | 0 | 0 | 0 |  | True | False |
-| strict_pretrained | 2025-01 | 37 | 13 | 3 | 2 | 0 | 1 | True | False |
-| strict_pretrained | 2025-02 | 40 | 13 | 1 | 1 | 0 | 1 | True | False |
-| strict_pretrained | 2025-03 | 41 | 13 | 1 | 1 | 0 | 1 | False | False |
-| strict_posttrained | 2024-07 | 16 | 9 | 8 | 6 | 1 | 1 | True | False |
-| strict_posttrained | 2024-08 | 24 | 10 | 9 | 5 | 1 | 0.55556 | True | False |
-| strict_posttrained | 2024-09 | 33 | 11 | 17 | 6 | 1 | 1 | True | True |
-| strict_posttrained | 2024-10 | 50 | 12 | 6 | 3 | 2 | 1 | True | False |
-| strict_posttrained | 2024-11 | 56 | 14 | 11 | 2 | 0 | 1 | True | False |
-| strict_posttrained | 2024-12 | 67 | 14 | 7 | 1 | 0 | 1 | True | False |
-| strict_posttrained | 2025-01 | 74 | 14 | 41 | 5 | 2 | 0.97561 | True | True |
-| strict_posttrained | 2025-02 | 115 | 16 | 13 | 4 | 1 | 1 | True | True |
-| strict_posttrained | 2025-03 | 128 | 17 | 13 | 2 | 0 | 1 | False | False |
+| strict_pretrained | 2024-07 | 26 | 10 | 1 | 1 | 1 | 1 | True | False |
+| strict_pretrained | 2024-08 | 27 | 11 | 2 | 2 | 1 | 0.5 | True | False |
+| strict_pretrained | 2024-09 | 29 | 12 | 6 | 3 | 1 | 1 | True | False |
+| strict_pretrained | 2024-10 | 35 | 13 | 0 | 0 | 0 |  | True | False |
+| strict_pretrained | 2024-11 | 35 | 13 | 1 | 1 | 0 | 1 | True | False |
+| strict_pretrained | 2024-12 | 36 | 13 | 0 | 0 | 0 |  | True | False |
+| strict_pretrained | 2025-01 | 36 | 13 | 2 | 1 | 0 | 1 | True | False |
+| strict_pretrained | 2025-02 | 38 | 13 | 1 | 1 | 0 | 1 | True | False |
+| strict_pretrained | 2025-03 | 39 | 13 | 1 | 1 | 0 | 1 | False | False |
+| strict_posttrained | 2024-07 | 17 | 9 | 8 | 6 | 1 | 1 | True | False |
+| strict_posttrained | 2024-08 | 25 | 10 | 9 | 5 | 1 | 0.55556 | True | False |
+| strict_posttrained | 2024-09 | 34 | 11 | 17 | 6 | 1 | 1 | True | True |
+| strict_posttrained | 2024-10 | 51 | 12 | 6 | 3 | 2 | 1 | True | False |
+| strict_posttrained | 2024-11 | 57 | 14 | 11 | 2 | 0 | 1 | True | False |
+| strict_posttrained | 2024-12 | 68 | 14 | 7 | 1 | 0 | 1 | True | False |
+| strict_posttrained | 2025-01 | 75 | 14 | 42 | 5 | 2 | 0.97619 | True | True |
+| strict_posttrained | 2025-02 | 117 | 16 | 13 | 4 | 1 | 1 | True | True |
+| strict_posttrained | 2025-03 | 130 | 17 | 13 | 2 | 0 | 1 | False | False |
 
 通过描述性筛选的短期折如下；逐模型预测及所有可拟合折的误差保存在结果表。多个月份仍共享训练数据与家族，不能把这些折当独立重复实验，更不能充当 12/24 个月回测。
 
 | stratum | target_month | variant | test_models | test_families | family_balanced_rmse | bias |
 | --- | --- | --- | --- | --- | --- | --- |
-| strict_posttrained | 2024-09 | N_only | 17 | 6 | 9.0781 | -6.6569 |
-| strict_posttrained | 2024-09 | N_plus_time | 17 | 6 | 8.9205 | -4.9081 |
-| strict_posttrained | 2024-09 | training_mean | 17 | 6 | 10.963 | -3.4233 |
-| strict_posttrained | 2025-01 | N_only | 41 | 5 | 9.0332 | -5.4599 |
-| strict_posttrained | 2025-01 | N_plus_time | 41 | 5 | 11.792 | 2.9279 |
-| strict_posttrained | 2025-01 | training_mean | 41 | 5 | 8.7255 | -1.2511 |
-| strict_posttrained | 2025-02 | N_only | 13 | 4 | 8.2249 | -3.2869 |
-| strict_posttrained | 2025-02 | N_plus_time | 13 | 4 | 8.618 | 2.4303 |
-| strict_posttrained | 2025-02 | training_mean | 13 | 4 | 9.6658 | -1.2699 |
+| strict_posttrained | 2024-09 | N_only | 17 | 6 | 9.0946 | -7.007 |
+| strict_posttrained | 2024-09 | N_plus_time | 17 | 6 | 8.8732 | -4.5756 |
+| strict_posttrained | 2024-09 | training_mean | 17 | 6 | 10.867 | -3.8583 |
+| strict_posttrained | 2025-01 | N_only | 42 | 5 | 9.0146 | -5.5836 |
+| strict_posttrained | 2025-01 | N_plus_time | 42 | 5 | 12.179 | 3.2848 |
+| strict_posttrained | 2025-01 | training_mean | 42 | 5 | 8.6285 | -1.6026 |
+| strict_posttrained | 2025-02 | N_only | 13 | 4 | 8.2166 | -3.4197 |
+| strict_posttrained | 2025-02 | N_plus_time | 13 | 4 | 8.6489 | 2.5104 |
+| strict_posttrained | 2025-02 | training_mean | 13 | 4 | 9.6494 | -1.3799 |
 
 严格后训练通过筛选 3 折，其中含时间模型家族均衡 RMSE 较低 1 折、较高 2 折；严格预训练通过筛选 0 折。只报告这种异质性，不据此估计长期趋势。
 ### 家族划分优先复核队列
@@ -114,26 +114,26 @@ C1/C4 名称候选 109 行，规则接受 88 行，严格开放预训练且算�
 
 | family_heuristic | holdout_models | example_model | full_delta_rmse | delta_without_family | absolute_influence_points | base_family_identity_review |
 | --- | --- | --- | --- | --- | --- | --- |
-| llama | 4 | deepseek-ai/DeepSeek-R1-Distill-Llama-70B | 3.7171 | 1.8261 | 1.8911 | pending_source_evidence |
-| phi | 16 | 1024m/PHI-4-Hindi | 3.7171 | 5.1105 | 1.3934 | pending_source_evidence |
-| deepseek | 2 | Sourjayon/DeepSeek-R1-8b-Sify | 3.7171 | 2.6546 | 1.0625 | pending_source_evidence |
-| namespace:aidc-ai | 1 | AIDC-AI/Marco-o1 | 3.7171 | 4.4863 | 0.76918 | pending_source_evidence |
-| namespace:godlikehhd | 16 | godlikehhd/alpaca_data_full_2 | 3.7171 | 4.2814 | 0.56422 | pending_source_evidence |
-| qwen | 28 | 1024m/QWEN-14B-B100 | 3.7171 | 3.6945 | 0.022669 | pending_source_evidence |
+| llama | 4 | deepseek-ai/DeepSeek-R1-Distill-Llama-70B | 4.0248 | 2.0823 | 1.9425 | pending_source_evidence |
+| phi | 17 | 1024m/PHI-4-Hindi | 4.0248 | 5.356 | 1.3311 | pending_source_evidence |
+| deepseek | 2 | Sourjayon/DeepSeek-R1-8b-Sify | 4.0248 | 2.9573 | 1.0676 | pending_source_evidence |
+| namespace:aidc-ai | 1 | AIDC-AI/Marco-o1 | 4.0248 | 4.8289 | 0.8041 | pending_source_evidence |
+| namespace:godlikehhd | 16 | godlikehhd/alpaca_data_full_2 | 4.0248 | 4.6485 | 0.62369 | pending_source_evidence |
+| qwen | 28 | 1024m/QWEN-14B-B100 | 4.0248 | 4.0119 | 0.012911 | pending_source_evidence |
 
 ### 共同规模支持
 
 | stratum | early_n | late_n | overlap_logN_low | overlap_logN_high | overlap_early_n | overlap_late_n | overlap_early_families | overlap_late_families | eligible |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| strict_pretrained | 30 | 5 | 0.033021 | 1.1694 | 19 | 5 | 11 | 4 | False |
-| strict_posttrained | 33 | 67 | 0.063333 | 1.784 | 31 | 66 | 10 | 6 | True |
+| strict_pretrained | 29 | 4 | 0.033021 | 1.1694 | 18 | 4 | 11 | 3 | False |
+| strict_posttrained | 34 | 68 | 0.063333 | 1.784 | 32 | 67 | 10 | 6 | True |
 | license_only_pretrained | 41 | 38 | -0.86967 | 1.3724 | 35 | 38 | 15 | 7 | True |
 
 只有支持审计通过的层才执行早期（截至 2024-08）与晚期（2025-01 至 03）两因素 Shapley 分解。分解数值是模型拟合变化，与实测变化另列；家族聚簇重抽样输出在 `decomposition_family_bootstrap.csv`。未通过者不报贡献百分比。
 
 | stratum | scale_points | conditional_time_points | model_change_points | observed_change_points | unexplained_points | t0 | t1 | causal_attribution |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| strict_posttrained | -4.876 | 5.768 | 0.89198 | 2.316 | 1.424 | 0.95277 | 7.4415 | False |
+| strict_posttrained | -4.4406 | 6.1553 | 1.7147 | 2.8956 | 1.1809 | 0.82136 | 7.4251 | False |
 | license_only_pretrained | -4.074 | 1.7168 | -2.3572 | -2.6676 | -0.31038 | 0.62423 | 7.3429 | False |
 
 家族重抽样分位数如下。严格后训练层的模型总变化区间跨 0；且时间模型没有展示稳健的未来时段留出优势。因此分解只作为探索性统计，不能形成稳定的贡献比例或已验证时间增长机制。许可证单独确认、权重状态缺失层也仅为敏感性。
@@ -143,51 +143,51 @@ C1/C4 名称候选 109 行，规则接受 88 行，严格开放预训练且算�
 | license_only_pretrained | 0.025 | -6.4615 | -1.424 | -6.0135 |
 | license_only_pretrained | 0.5 | -3.5599 | 1.7999 | -1.7975 |
 | license_only_pretrained | 0.975 | 0.46186 | 4.1 | 3.194 |
-| strict_posttrained | 0.025 | -15.269 | 0.96882 | -6.0386 |
-| strict_posttrained | 0.5 | -4.2183 | 5.0521 | 0.77488 |
-| strict_posttrained | 0.975 | 1.8309 | 13.733 | 11.033 |
+| strict_posttrained | 0.025 | -15.735 | 1.0954 | -5.9756 |
+| strict_posttrained | 0.5 | -3.8099 | 5.3404 | 1.6359 |
+| strict_posttrained | 0.975 | 2.6629 | 14.047 | 12.171 |
 
 将响应面只用早晚期共同参数量支持区间内的记录重拟合，可检查全样本拟合是否由区间外记录驱动。两种拟合的符号或量级不稳时，不能解释为稳健贡献。
 
 | stratum | overlap_fit_n | full_fit_scale_points | overlap_fit_scale_points | full_fit_time_points | overlap_fit_time_points | full_fit_total_points | overlap_fit_total_points |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| strict_posttrained | 136 | -4.876 | -4.6431 | 5.768 | 5.3124 | 0.89198 | 0.6693 |
+| strict_posttrained | 138 | -4.4406 | -4.2745 | 6.1553 | 5.8301 | 1.7147 | 1.5556 |
 | license_only_pretrained | 94 | -4.074 | -4.3976 | 1.7168 | 2.2925 | -2.3572 | -2.105 |
 
 ### 任务敏感性
 
 | score_definition | late_minus_early |
 | --- | --- |
-| six_task_mean | 3.3561 |
-| exclude_IFEval | 4.456 |
-| exclude_BBH | 3.9386 |
-| exclude_MATH Lvl 5 | 1.1734 |
-| exclude_GPQA | 3.7309 |
-| exclude_MUSR | 3.581 |
-| exclude_MMLU-PRO | 3.2564 |
-| task_IFEval | -2.1437 |
-| task_BBH | 0.44308 |
-| task_MATH Lvl 5 | 14.269 |
-| task_GPQA | 1.4819 |
-| task_MUSR | 2.2314 |
-| task_MMLU-PRO | 3.8543 |
+| six_task_mean | 3.8758 |
+| exclude_IFEval | 5.0535 |
+| exclude_BBH | 4.3523 |
+| exclude_MATH Lvl 5 | 1.7275 |
+| exclude_GPQA | 4.2936 |
+| exclude_MUSR | 4.139 |
+| exclude_MMLU-PRO | 3.6887 |
+| task_IFEval | -2.0129 |
+| task_BBH | 1.4934 |
+| task_MATH Lvl 5 | 14.617 |
+| task_GPQA | 1.7864 |
+| task_MUSR | 2.5598 |
+| task_MMLU-PRO | 4.811 |
 
 六项任务各自用训练期家族分组 CV 选正则化强度，再在 2025-01 至 03 月做时间留出。各任务的尺度和难度不同，原始 RMSE 不能直接相加；它们用于检查综合均分是否掩盖异质性。
 
 | task | variant | future_holdout_n | future_holdout_rmse | future_holdout_bias |
 | --- | --- | --- | --- | --- |
-| IFEval | N_only | 67 | 21.611 | 4.2556 |
-| IFEval | N_plus_time | 67 | 27.386 | 16.817 |
-| BBH | N_only | 67 | 15.6 | -4.8122 |
-| BBH | N_plus_time | 67 | 15.816 | 3.291 |
-| MATH Lvl 5 | N_only | 67 | 19.469 | -14.663 |
-| MATH Lvl 5 | N_plus_time | 67 | 13.962 | 5.5261 |
-| GPQA | N_only | 67 | 6.2632 | -3.128 |
-| GPQA | N_plus_time | 67 | 5.6803 | -0.14553 |
-| MUSR | N_only | 67 | 6.5583 | -2.7345 |
-| MUSR | N_plus_time | 67 | 6.6784 | 2.4902 |
-| MMLU-PRO | N_only | 67 | 14.633 | -7.6771 |
-| MMLU-PRO | N_plus_time | 67 | 14.76 | 3.4108 |
+| IFEval | N_only | 68 | 22.278 | 4.6453 |
+| IFEval | N_plus_time | 68 | 28.284 | 17.606 |
+| BBH | N_only | 68 | 15.747 | -5.2297 |
+| BBH | N_plus_time | 68 | 16.564 | 4.4286 |
+| MATH Lvl 5 | N_only | 68 | 19.573 | -14.903 |
+| MATH Lvl 5 | N_plus_time | 68 | 14.099 | 5.848 |
+| GPQA | N_only | 68 | 6.4267 | -3.2756 |
+| GPQA | N_plus_time | 68 | 5.7461 | -0.39263 |
+| MUSR | N_only | 68 | 6.7269 | -2.9196 |
+| MUSR | N_plus_time | 68 | 6.7084 | 2.3497 |
+| MMLU-PRO | N_only | 68 | 14.892 | -8.1394 |
+| MMLU-PRO | N_plus_time | 68 | 15.207 | 4.0953 |
 
 ## 算力审计与观测前沿
 
@@ -195,27 +195,40 @@ C4 连接子样本只报告关联与按家族重抽样的 Spearman 区间，不�
 
 | variable | n | families | spearman | family_bootstrap_ci_low | family_bootstrap_ci_high | family_bootstrap_valid_replicates | min | max | status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| log_compute | 29 | 10 | 0.82892 | 0.3594 | 0.96154 | 1000 | 20.522 | 24.545 | association_only_nonrepresentative_linked_subset |
-| logN | 29 | 10 | 0.58597 | 0.28912 | 0.78488 | 1000 | -0.30627 | 1.759 | association_only_nonrepresentative_linked_subset |
+| log_compute | 27 | 10 | 0.81087 | 0.12111 | 0.96102 | 1000 | 20.868 | 24.545 | association_only_nonrepresentative_linked_subset |
+| logN | 27 | 10 | 0.54507 | 0.02893 | 0.78109 | 1000 | -0.30627 | 1.759 | association_only_nonrepresentative_linked_subset |
+
+公开来源复核把 29 条分为近似预训练算力有来源支持、训练阶段/算力口径不可比、证据不足三类。`source_supported_estimate` 不表示训练方直接测得 FLOPs；也不代表已核对 checkpoint 哈希。下表是来源支持子集的独立敏感性，仍受小样本、家族聚集、年代和架构混杂限制，不作因果推断。
+
+| source_review_status | size |
+| --- | --- |
+| insufficient_evidence | 9 |
+| not_comparable | 5 |
+| source_supported_estimate | 15 |
+
+| variable | n | families | spearman | family_bootstrap_ci_low | family_bootstrap_ci_high | family_bootstrap_valid_replicates | min | max | status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| log_compute | 15 | 6 | 0.52904 | -0.17647 | 0.87614 | 999 | 20.868 | 23.468 | association_only_nonrepresentative_linked_subset |
+| logN | 15 | 6 | 0.24486 | -0.24324 | 0.66675 | 1000 | -0.30627 | 1.6021 | association_only_nonrepresentative_linked_subset |
 
 | type_group | month | models | families | max_score | q90_score |
 | --- | --- | --- | --- | --- | --- |
-| posttrained | 2024-06 | 16 | 9 | 33.358 | 28.734 |
+| posttrained | 2024-06 | 17 | 9 | 33.358 | 28.574 |
 | posttrained | 2024-07 | 8 | 6 | 29.404 | 28.782 |
 | posttrained | 2024-08 | 9 | 5 | 36.879 | 33.788 |
 | posttrained | 2024-09 | 17 | 6 | 46.597 | 41.051 |
 | posttrained | 2024-10 | 6 | 3 | 31.82 | 30.076 |
 | posttrained | 2024-11 | 11 | 2 | 34.12 | 33.55 |
 | posttrained | 2024-12 | 7 | 1 | 46.889 | 43.804 |
-| posttrained | 2025-01 | 41 | 5 | 41.559 | 39.06 |
+| posttrained | 2025-01 | 42 | 5 | 41.559 | 39.059 |
 | posttrained | 2025-02 | 13 | 4 | 41.919 | 39.179 |
 | posttrained | 2025-03 | 13 | 2 | 41.605 | 29.942 |
-| pretrained | 2024-06 | 27 | 10 | 26.728 | 24.369 |
+| pretrained | 2024-06 | 26 | 10 | 26.728 | 24.48 |
 | pretrained | 2024-07 | 1 | 1 | 5.5765 | 5.5765 |
 | pretrained | 2024-08 | 2 | 2 | 6.5704 | 6.3541 |
 | pretrained | 2024-09 | 6 | 3 | 38.008 | 34.98 |
 | pretrained | 2024-11 | 1 | 1 | 7.2241 | 7.2241 |
-| pretrained | 2025-01 | 3 | 2 | 29.483 | 24.788 |
+| pretrained | 2025-01 | 2 | 1 | 6.0085 | 5.9147 |
 | pretrained | 2025-02 | 1 | 1 | 17.51 | 17.51 |
 | pretrained | 2025-03 | 1 | 1 | 32.436 | 32.436 |
 
@@ -238,4 +251,4 @@ C6 高可比 n=7、独立家族 1。Loss 范围 [2.0933, 2.5978]，得分范围 
 
 ## 结论边界
 
-排行榜提交不是随机实验，也不等于模型发布日期；主结果仅覆盖许可证和权重可核的模型。严格开放预训练的晚期样本较少。粗粒度家族划分与模型重复提交可能缩小有效样本量。C4 的同名归一化连接仍应人工复核后用于正式论文。C8 与 C1 BBH 标尺不同。C6 桥接不支持前三问 Loss 向当前或未来排行榜前沿转译。长期情景没有同长度回测；不得写成已经验证的预测。
+排行榜提交不是随机实验，也不等于模型发布日期；主结果仅覆盖许可证和权重可核的模型。严格开放预训练的晚期样本较少。粗粒度家族划分与模型重复提交可能缩小有效样本量。C4 的公开来源与估算口径已分级复核，但没有逐 checkpoint 身份、完整训练遥测的确认；来源支持子集也只能用于探索性关联。C8 与 C1 BBH 标尺不同。C6 桥接不支持前三问 Loss 向当前或未来排行榜前沿转译。长期情景没有同长度回测；不得写成已经验证的预测。
