@@ -1,0 +1,5 @@
+﻿response_scale,variant,alpha_cv,train_n,holdout_n,train_families,holdout_families,cv_family_pinball_score_points,holdout_family_pinball_score_points,holdout_row_coverage,long_horizon_validated,selected_by_training_cv
+raw,N_only,0.01,74,67,14,6,1.8034258967313168,1.072965715032991,0.8805970149253731,False,False
+raw,N_time,0.01,74,67,14,6,1.7132834216273902,1.3215034528726362,0.9701492537313433,False,False
+logit,N_only,0.0,74,67,14,6,1.8662886985735996,1.0682601255224469,0.8955223880597015,False,False
+logit,N_time,0.0,74,67,14,6,1.619938391985146,1.3177111721208963,0.9701492537313433,False,True

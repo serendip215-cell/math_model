@@ -1,0 +1,8 @@
+﻿task,all_early_n,all_late_n,common_families,common_early_n,common_late_n,all_sample_delta,common_family_equal_weight_delta,common_family_min_delta,common_family_max_delta,interpretation
+IFEval,33,67,3,17,48,-2.14368973374183,-3.2777736749074413,-8.554773556385932,7.199652873423467,descriptive_common_families_only_not_causal_attribution
+BBH,33,67,3,17,48,0.44308372337848567,3.0850035755929412,-11.199466516940358,24.033165358191432,descriptive_common_families_only_not_causal_attribution
+MATH Lvl 5,33,67,3,17,48,14.269390482358878,17.681134009495036,8.438983599482086,26.19429758308157,descriptive_common_families_only_not_causal_attribution
+GPQA,33,67,3,17,48,1.4818626007647335,2.6152524768296592,-2.097315436241609,9.014261744966444,descriptive_common_families_only_not_causal_attribution
+MUSR,33,67,3,17,48,2.2313583597165696,2.8611614893353168,0.24525204613095575,7.665836588541664,descriptive_common_families_only_not_causal_attribution
+MMLU-PRO,33,67,3,17,48,3.8543130174402016,6.260037167201399,-6.300328752955082,24.336722443853436,descriptive_common_families_only_not_causal_attribution
+Y,33,67,3,17,48,3.3560530749861748,4.870802507257818,-1.5115612638780327,13.794347229479119,descriptive_common_families_only_not_causal_attribution

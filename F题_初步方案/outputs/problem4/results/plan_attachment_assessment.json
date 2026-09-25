@@ -1,0 +1,29 @@
+{
+  "attachment_refinement_scripts_missing": [
+    "problem4_refinement.py",
+    "problem4_refinement2.py",
+    "problem4_refinement3.py"
+  ],
+  "attachment_extra_results_verified": false,
+  "common_family_count": 3,
+  "forecast_12_24_month_score_identified": false,
+  "quantile_selected_training_model": [
+    {
+      "response_scale": "logit",
+      "variant": "N_time"
+    }
+  ],
+  "math5_descriptive": {
+    "task": "MATH Lvl 5",
+    "all_early_n": 33,
+    "all_late_n": 67,
+    "common_families": 3,
+    "common_early_n": 17,
+    "common_late_n": 48,
+    "all_sample_delta": 14.269390482358878,
+    "common_family_equal_weight_delta": 17.681134009495036,
+    "common_family_min_delta": 8.438983599482086,
+    "common_family_max_delta": 26.19429758308157,
+    "interpretation": "descriptive_common_families_only_not_causal_attribution"
+  }
+}
