@@ -6,7 +6,7 @@
 
 在本目录运行两遍：xelatex -interaction=nonstopmode -halt-on-error main.tex
 
-要求 XeLaTeX、ctex 及 Windows 的宋体/黑体字体。本机未安装 XeLaTeX；已通过仓库的 GitHub Actions（运行 36106800567）在 TeX Live 2026 / Fandol 字体环境下编译出 main.pdf，共 20 页。已抽查封面、摘要、目录、正文图表缩略图和末页 AI 披露；全部章节与 15 张结果图路径存在。Windows 本地使用宋体/黑体再次编译时分页可能略有变化。
+要求 XeLaTeX、ctex 及 Windows 的宋体/黑体字体。本机未安装 XeLaTeX；仓库的 GitHub Actions 使用 TeX Live / Fandol 字体编译。正文按本届格式规范设小四号字、单倍行距、无页眉，摘要页起连续居中页码；目录只列一级标题。PDF 编译后必须检查逐页渲染和中文文本提取，不能只看编译是否成功。Windows 本地使用宋体/黑体再次编译时分页可能略有变化。
 
 ## 证据口径
 
