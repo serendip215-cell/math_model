@@ -307,6 +307,22 @@ def main() -> None:
           scenario.conditional_compute_FLOPs,
           calibration.C4_anchor_median_compute_FLOPs * np.exp(
               scenario.annual_log_compute_growth_assumption * scenario.horizon_months / 12)))
+    anchor_sensitivity = read("conditional_scenario_anchor_sensitivity.csv")
+    matched = anchor_sensitivity.merge(
+        scenario[["horizon_months", "scenario", "annual_log_compute_growth_assumption",
+                  "conditional_compute_FLOPs"]], on=["horizon_months", "scenario"],
+        validate="one_to_one")
+    check("2024 complete-year anchor independently matches C4", len(matched) == 8 and
+          np.allclose(matched.anchor_2024_complete_FLOPs, med.loc[2024]) and
+          matched.anchor_2024_complete_models_with_compute.eq(int(c4_eligible.loc[
+              c4_eligible.publication.dt.year.eq(2024), "compute"].gt(0).sum())).all())
+    check("Anchor sensitivity holds growth assumptions fixed", np.allclose(
+          matched.conditional_compute_2024_anchor_FLOPs,
+          med.loc[2024] * np.exp(matched.annual_log_compute_growth_assumption *
+                                matched.horizon_months / 12)) and
+          np.allclose(matched.conditional_compute_2025_anchor_FLOPs,
+                      matched.conditional_compute_FLOPs) and
+          np.allclose(matched.ratio_2024_to_2025_anchor, med.loc[2024] / med.loc[2025]))
     strict_post = panel[panel.strict_open & panel.type_group.eq("posttrained")]
     check("Logical score bound uses observed cumulative record", np.allclose(
           scenario.cumulative_frontier_logical_lower_score, strict_post.Y.max()) and

@@ -746,6 +746,22 @@ def conditional_scenarios(panel: pd.DataFrame, fits: dict, holdout: pd.DataFrame
                 "bound_type": "deterministic_logical_bound_not_confidence_interval",
                 "predicted_conditional_score": np.nan,
                 "status": "compute_path_conditional_score_not_identified"})
+    sensitivity = []
+    for row in records:
+        alt_compute = float(c24 * math.exp(
+            row["annual_log_compute_growth_assumption"] * row["horizon_months"] / 12))
+        sensitivity.append({
+            "origin": row["origin"], "horizon_months": row["horizon_months"],
+            "scenario": row["scenario"],
+            "anchor_2024_complete_models_with_compute": int(resource.loc[2024, "compute_available"]),
+            "anchor_2025_partial_models_with_compute": int(resource.loc[2025, "compute_available"]),
+            "anchor_2024_complete_FLOPs": c24,
+            "anchor_2025_partial_FLOPs": c25,
+            "conditional_compute_2024_anchor_FLOPs": alt_compute,
+            "conditional_compute_2025_anchor_FLOPs": row["conditional_compute_FLOPs"],
+            "ratio_2024_to_2025_anchor": alt_compute / row["conditional_compute_FLOPs"],
+            "interpretation": "anchor_sensitivity_only_not_observed_future_budget"})
+    save(pd.DataFrame(sensitivity), "conditional_scenario_anchor_sensitivity.csv")
     return save(pd.DataFrame(records), "conditional_frontier_scenarios.csv")
 
 
@@ -993,6 +1009,11 @@ def write_report(flow: pd.DataFrame, links: pd.DataFrame, usable: pd.DataFrame,
               "", tbl(pd.read_csv(RESULTS / "conditional_scenario_calibration.csv")), "",
               "下表给出从 C1 最后同口径日 2025-03-13 起算的 12/24 个月条件算力路径。`conditional_compute_FLOPs` 是在该参考样本中位数上套用增长假设的算术结果，不是未来实际观测。",
               "", tbl(scenario_view), "",
+              "### 2024 完整年份与 2025 部分年份起点敏感性", "",
+              "保持所有增长假设不变，只将情景起点从 C4 的 2025 年部分样本中位数换为 2024 年完整年份样本中位数。两列都是不同年度、不同模型集合的横截面中位数，2024 列只是参考值敏感性，不能回填成 2025-03-13 的实测预算。相同乘数下两套 12/24 个月路径的比例固定为两个起点中位数之比；差异量化了参考样本选择的影响，不形成统计置信区间。",
+              "", tbl(pd.read_csv(RESULTS / "conditional_scenario_anchor_sensitivity.csv")[[
+                  "horizon_months", "scenario", "conditional_compute_2024_anchor_FLOPs",
+                  "conditional_compute_2025_anchor_FLOPs", "ratio_2024_to_2025_anchor"]]), "",
               "能力列的下界是截至起点已观测的严格开放后训练模型累计最高分；上界 100 是六任务百分制的逻辑上限。这个区间不是置信区间，也不是具有预测力的窄界。C1/C4 可靠连接的 29 条算力—得分记录全部为预训练模型，严格开放后训练的成对记录为 0；来源进一步支持的 15 条配对记录最高算力仍低于本情景的 C4 参考算力，从起点就已越出其支持域。C1 月度高分位参数量趋势为负，含时间模型的未来时段留出也未胜过仅规模模型。因此附件尚不能识别算力放缓对后训练能力前沿的数值影响，`predicted_conditional_score` 保持空值。图 `q4_compute_scenario_identification.pdf` 分开展示资源假设和能力识别范围，不绘制虚构的能力预测曲线。",
               "", "## 图表与可复算文件", "",
               "图表在 `outputs/problem4/figures/`，全部由同一脚本生成。原始合同、连接逐行理由、C8 文件审计、留出指标、分解支持和重抽样、资源情景均在 `outputs/problem4/results/`。",

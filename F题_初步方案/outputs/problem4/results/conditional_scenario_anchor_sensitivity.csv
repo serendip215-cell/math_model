@@ -1,0 +1,9 @@
+﻿origin,horizon_months,scenario,anchor_2024_complete_models_with_compute,anchor_2025_partial_models_with_compute,anchor_2024_complete_FLOPs,anchor_2025_partial_FLOPs,conditional_compute_2024_anchor_FLOPs,conditional_compute_2025_anchor_FLOPs,ratio_2024_to_2025_anchor,interpretation
+2025-03-13,12,stagnation,150,22,1.89864e+23,5.7144e+23,1.89864e+23,5.7144e+23,0.33225535489290214,anchor_sensitivity_only_not_observed_future_budget
+2025-03-13,12,slow_half_low,150,22,1.89864e+23,5.7144e+23,2.7361867514347316e+23,8.235192333669695e+23,0.33225535489290214,anchor_sensitivity_only_not_observed_future_budget
+2025-03-13,12,slow_half_high,150,22,1.89864e+23,5.7144e+23,3.5251213344724234e+23,1.060967500616716e+24,0.33225535489290214,anchor_sensitivity_only_not_observed_future_budget
+2025-03-13,12,historical_mid_reference,150,22,1.89864e+23,5.7144e+23,5.080157529907391e+23,1.5289919199481098e+24,0.3322553548929022,anchor_sensitivity_only_not_observed_future_budget
+2025-03-13,24,stagnation,150,22,1.89864e+23,5.7144e+23,1.89864e+23,5.7144e+23,0.33225535489290214,anchor_sensitivity_only_not_observed_future_budget
+2025-03-13,24,slow_half_low,150,22,1.89864e+23,5.7144e+23,3.943200363800905e+23,1.1867981375565612e+24,0.33225535489290214,anchor_sensitivity_only_not_observed_future_budget
+2025-03-13,24,slow_half_high,150,22,1.89864e+23,5.7144e+23,6.544937651557241e+23,1.9698516683551755e+24,0.3322553548929021,anchor_sensitivity_only_not_observed_future_budget
+2025-03-13,24,historical_mid_reference,150,22,1.89864e+23,5.7144e+23,1.3592887819004532e+24,4.091096687782806e+24,0.33225535489290225,anchor_sensitivity_only_not_observed_future_budget
