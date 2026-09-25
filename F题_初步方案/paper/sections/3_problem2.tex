@@ -1,0 +1,43 @@
+\section{问题二：质量修正标度律与跨问接口}
+\subsection{参数量--数据量基线}
+B1 的 \texttt{pythia\_training\_log\_existing.csv} 有 1176 个检查点，8 条参数规模轨迹各 147 点；B3 的 8 个插值文件共 4000 行且 \texttt{interpolated=1}，只用于连续性审计。以 $N_B,D_B$ 为十亿单位，拟合
+\begin{equation}
+L_0(N_B,D_B)=E+A N_B^{-\alpha}+B D_B^{-\beta}.
+\end{equation}
+得到 $E=1.6898,A=0.35398,B=1.24031,\alpha=0.33998,\beta=0.27988$。按完整参数规模轨迹留出，RMSE 为 $0.000151$。这异常小，说明 B1 几乎遵循规则化幂律；轨迹 Bootstrap 给出的极窄区间主要反映该数据集内变化，不能视为真实预训练项目的完整认知不确定性。B4 的 57 条和 B5 的 44 条外部记录因模型族、分词器和验证集不同，原始 Loss 存在协议截距差；去均值 RMSE 分别为 0.1919 和 0.1965，不能仅用 B1 内部误差宣称跨协议精度。B2 的半合成模型族外记录与 B3 的插值轨迹另作压力审计；B9 的 132 条大模型元数据界定远域规模，B10 的 128 条 Loss 为估算值，不计作百亿参数以上真实精度验证。经典标度律及算力最优思想参见\cite{kaplan,hoffmann}。
+\fig{problem2/figures/m0_scaling_fit.pdf}{0.86}{B1 训练检查点与参数量--数据量基线拟合。}
+
+\subsection{质量作用位置的竞争模型}
+B6 为 360 条半合成质量实验。对质量仅作用于数据项、仅作用于参数项以及同时作用于两项等结构做完整 $(N,D)$ 单元分组验证，并将 $D_B=600$ 与观测上限 300B 内的验证分开。分组 CV 选中的 \texttt{exp\_both} 为
+\begin{equation}
+L_1(N_B,D_B,Q_B)=\delta_B+
+e^{\gamma_Q(1-Q_B)}
+\left(A N_B^{-\alpha}+B D_B^{-\beta}\right)+E,
+\label{eq:m1}
+\end{equation}
+其中 $Q_B\in[0.1,1]$，$\delta_B$ 是 B6 来源截距。所选结构的 $\gamma_Q=0.3650$，D$\leq$300B 的分组 CV RMSE 为 0.05951；无质量项为 0.14005。$D_B=600$ 的单列审计 RMSE 为 0.05576，B7 新质量水平且 $D_B\leq300$ 的 RMSE 为 0.04459。它们检验的是半合成体系内的一致性，不能转写为真实训练提质效果。B8 相邻 $Q$ 提升仅 15.64\% 对应 Loss 不升，与 B6/B7 的约 75\% 相反，故不参与主拟合，也不反转其 $Q$ 定义。不同生成机制只是可能解释，尚无原始生成脚本证实。
+\fig{problem2/figures/m1_cv_comparison.pdf}{0.82}{质量修正的竞争结构在 B6 分组验证中的误差。}
+
+\subsection{边际效用、参数等价量及 IsoFLOP}
+记 $X=A N_B^{-\alpha},Y=B D_B^{-\beta},G=e^{\gamma_Q(1-Q_B)}$，则
+\begin{equation}
+\frac{\partial L_1}{\partial N_B}=-\frac{\alpha XG}{N_B},\quad
+\frac{\partial L_1}{\partial D_B}=-\frac{\beta YG}{D_B},\quad
+\frac{\partial L_1}{\partial Q_B}=-\gamma_Q(X+Y)G .
+\end{equation}
+固定 $D_B,p$，将 $Q_B$ 提高 0.1 与增加 $N_B$ 的模型预测 Loss 改善相等，通过一维求根而非误用只修正数据项的闭式求解。B6 支持网格内，参数倍数 $N'_B/N_B$ 的中位数为 1.2456，第 5 与第 95 百分位分别为 1.1524 和 1.5661；其数值随 $N_B,D_B$ 改变，不是统一换算系数。以上均是选中模型及 B6 标尺下的条件等价。
+\fig{problem2/figures/quality_parameter_equivalence.pdf}{0.83}{在固定数据量时，$Q_B$ 提高 0.1 的条件参数等价倍数。}
+
+用 B1 实测算力字段作观测 IsoFLOP 分桶；模型前沿则在经核验的 $C\simeq6ND$ 换算及 B1 支持域内优化。由于式(\ref{eq:m1})的质量因子同时乘两项，固定 $C$ 时模型内的最优 $N,D$ 不随 $Q_B$ 改变，质量只移动预测 Loss 前沿。这是公式的条件性质，不是额外训练实验。
+\fig{problem2/figures/isoflop_frontier.pdf}{0.86}{B1 算力支持域内的观测分桶与选中质量模型的条件前沿。}
+
+\subsection{配比项与质量标尺的可识别性}
+第一问保存的局部配比响应可作条件接口
+\begin{equation}
+L_{\rm cand}=L_1(N_B,D_B,Q_B)+w_p(N_B)\Delta_p(p).
+\end{equation}
+但 A4 配比 Loss 与 B6 质量 Loss 无共同实验协议，故加性、乘性及 $Q_B\times p$ 项的优劣尚不能由附件直接检验；上式仅是候选结构，不用于第三问绝对预测。A16 仅为 6/17 域提供直接或近似质量映射；用代理补齐 17 域后，推荐配方相对训练均值的 $Q_A$ 变化为 $-0.00305$。仅根据已映射域、将未映射域质量限制在 $[0,1]$ 时，变化界为 $[-0.05749,0.03622]$，跨过零；这不是置信区间。没有 $Q_A$ 与 $Q_B$ 的成对实验标定，故不把 $Q_A$ 代入式(\ref{eq:m1})。
+
+\fig{problem2/figures/quality_bridge_identification.pdf}{0.82}{两组配方质量代理差及仅凭已映射域得到的部分识别界。}
+
+问题一的逐域尺度指数仅在具有 Loss 目标的 13 域可估。以 1M 为参考点的 $w_i(N)=(N/10^6)^{-\kappa_i}$ 中，pile\_cc、hackernews、gutenberg\_pg\_19 的 $\kappa_i$ 分别为 $-0.232,-0.149,-0.063$，其权重随规模放大，不能概括为所有配比效应都衰减；超过 1B 的敏感性分析若改以 1B 为参考点，须重新标明 $N_0$。
