@@ -1,0 +1,7 @@
+﻿domain,stratum,id,quality_score,conflict_score,visible_excerpt_observation,review_scope
+arxiv,low_q10,BkiUfpo5qhDCnXuZvcNm,0.7018466289278631,0.2494003239591852,开头为纤维丛及拉格朗日密度的数学论文表述；低分位不等于内容虚假或无用。,first_360_characters_only
+book,high_q90,BkiUftPxK1yAga6JuYW_,0.6684193089815127,0.2401570275839981,高分位样本开头仍含版权和出版前置信息；高分不等于没有模板文字。,first_360_characters_only
+c4,highest_conflict,BkiUdDk25V5ihkoTWuOy,0.5715516720511749,0.5295101252776577,高冲突样本的开头是连续的搜索关键词短语；这一段缺乏连贯叙述。,first_360_characters_only
+github,low_q10,BkiUc4s25V5ioeHBl06k,0.4699267203523027,0.1708628014286924,低分位样本是简短但有结构的数据库迁移代码；语言质量分不能等同代码正确性。,first_360_characters_only
+wikipedia,low_q10,BkiUc4rxK7Tt6AlxDb_9,0.5086675498897438,0.2422838773427661,低分位样本开头是意大利语条目；英语向指标可能影响跨语言比较。,first_360_characters_only
+wikipedia,high_q90,BkiUeA3xK7Dgs_cY6OuR,0.7376413290453868,0.0579834579833753,高分位样本开头也是非英语条目；不能仅以语言解释所有分数差。,first_360_characters_only

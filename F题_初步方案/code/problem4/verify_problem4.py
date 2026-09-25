@@ -27,6 +27,36 @@ def main() -> None:
         checks.append((name, bool(condition), detail))
 
     raw = pd.read_csv(DATA / "leaderboard_enhanced.csv")
+    c3_raw = pd.read_csv(DATA / "leaderboard_extended_timeseries.csv")
+    c3_sources = read("c3_source_comparability.csv")
+    c3_rows = read("c3_historical_row_audit.csv")
+    c3_years = read("c3_historical_year_coverage.csv")
+    c3_omitted = read("c3_c1_omitted_rows.csv")
+    check("C3 all supplied rows classified", len(c3_raw) == 4599 and
+          c3_sources.rows.sum() == len(c3_raw) and len(c3_rows) == 26)
+    source_board = c3_sources.set_index("source").loc["Open LLM Leaderboard"]
+    source_hist = c3_sources.set_index("source").loc["Historical (papers/reports)"]
+    check("C3 leaderboard rows are C1 duplicates up to rounding",
+          int(source_board.rows) == 4573 and
+          int(source_board.exact_name_overlap_with_C1) == 4573 and
+          float(source_board.max_nearest_C1_average_difference) <= .00501)
+    c1_raw = pd.read_csv(DATA / "leaderboard_cleaned.csv")
+    board_names = set(c3_raw.loc[c3_raw.Source.eq("Open LLM Leaderboard"), "Model"])
+    check("C1 records omitted from C3 have missing parameter size",
+          len(c3_omitted) == 3 and c3_omitted["#Params (B)"].isna().all() and
+          set(c3_omitted.Model) == set(c1_raw.loc[~c1_raw.Model.isin(board_names), "Model"]))
+    raw_hist = c3_raw[c3_raw.Source.eq("Historical (papers/reports)")].set_index("Model")
+    saved_hist = c3_rows.set_index("Model")
+    columns = ["IFEval", "BBH", "MATH_Lvl5", "GPQA", "MUSR", "MMLU_PRO"]
+    check("C3 historical score discrepancy independently recomputed",
+          saved_hist.index.is_unique and set(saved_hist.index) == set(raw_hist.index) and
+          np.allclose(saved_hist.six_task_mean,
+                      raw_hist.loc[saved_hist.index, columns].mean(axis=1)) and
+          np.allclose(saved_hist.abs_average_discrepancy,
+                      (raw_hist.loc[saved_hist.index, "Average"] -
+                       raw_hist.loc[saved_hist.index, columns].mean(axis=1)).abs()) and
+          int(source_hist.rows_abs_discrepancy_gt_0_01) == 26 and
+          not c3_years.usable_for_C1_protocol_trend.any())
     panel = read("audited_leaderboard_panel.csv")
     flow = read("panel_attrition.csv")
     check("C2 raw row contract", len(raw) == 4576)
@@ -255,7 +285,7 @@ def main() -> None:
              "| 检查 | 结果 | 说明 |", "| --- | --- | --- |"]
     lines += [f"| {name} | {'通过' if ok else '失败'} | {detail} |" for name, ok, detail in checks]
     lines += ["", "## 验收范围", "",
-              "这些检查独立读取原始 C2/C4/C8 与保存产物，核对口径、守门条件和数值回代。外部来源网页的具体文字由逐行来源审计记录，本脚本只检查审计文件的覆盖和结果一致性；它不证明 checkpoint 哈希一致，不把观察性分解升级为因果识别，也不证明未来外推可信。", ""]
+              "这些检查独立读取原始 C2/C3/C4/C8 与保存产物，核对口径、守门条件和数值回代。C3 历史补录的分数口径不一致，因此只用于来源与趋势可比性审计。外部来源网页的具体文字由逐行来源审计记录，本脚本只检查审计文件的覆盖和结果一致性；它不证明 checkpoint 哈希一致，不把观察性分解升级为因果识别，也不证明未来外推可信。", ""]
     REPORT.write_text("\n".join(lines), encoding="utf-8")
     if not all(ok for _, ok, _ in checks):
         raise AssertionError("Question 4 verification failed: " +

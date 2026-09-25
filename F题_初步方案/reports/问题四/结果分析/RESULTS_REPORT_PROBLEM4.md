@@ -22,6 +22,26 @@
 | strict pretrained | 42 | 42 | 13 |
 | strict posttrained | 141 | 141 | 17 |
 
+### C3 历史补录的口径审计
+
+C3 的排行榜来源 4,573 条均可在 C1 按模型名找到，得分只相差两位小数舍入；C1 另有 3 条参数量缺失记录未进入 C3，名单见 `c3_c1_omitted_rows.csv`。26 条文献/报告补录记录提供更早年份，但其 `Average` 与六项任务均值并非同一计算口径。零任务分值不能自动解释为真实零分，也可能是未测。以下只量化来源覆盖和数值一致性，不把早期补录行拼接为 C1 同协议的回归或长期回测。
+
+| source | rows | year_min | year_max | unique_models | exact_name_overlap_with_C1 | max_nearest_C1_average_difference | median_abs_average_minus_six_mean | rows_abs_discrepancy_gt_0_01 | rows_with_zero_task |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Open LLM Leaderboard | 4573 | 2024 | 2025 | 4494 | 4573 | 0.0049999 | 0.002491 | 0 | 332 |
+| Historical (papers/reports) | 26 | 2019 | 2024 | 26 | 0 |  | 5.1333 | 26 | 23 |
+
+早期补录逐年覆盖如下；`usable_for_C1_protocol_trend=False` 表示不能凭这些值延长可比趋势，并不否认对应模型或文献存在。逐模型差异见 `c3_historical_row_audit.csv`。
+
+| Year | records | median_reported_average | median_six_task_mean | median_abs_discrepancy | records_with_zero_task | usable_for_C1_protocol_trend |
+| --- | --- | --- | --- | --- | --- | --- |
+| 2019 | 1 | 5 | 4.1 | 0.9 | 1 | False |
+| 2020 | 1 | 50 | 7.6667 | 42.333 | 1 | False |
+| 2021 | 2 | 3.5 | 0.99167 | 2.5083 | 2 | False |
+| 2022 | 7 | 12 | 1.4167 | 6.7667 | 7 | False |
+| 2023 | 13 | 12 | 3.1667 | 7.2667 | 10 | False |
+| 2024 | 2 | 5.5 | 2.15 | 3.35 | 2 | False |
+
 许可证符合预设集合但权重状态缺失的模型，与权重状态明确为 No 的模型分别计数；后者不进入‘状态未知’敏感性层。
 
 ### 提交日与 Epoch 元数据发布日期

@@ -25,6 +25,7 @@ from sklearn.model_selection import GroupKFold
 from sklearn.preprocessing import StandardScaler
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from c4_source_review import adjudicate
+from c3_historical_audit import audit_c3
 
 PROJECT = Path(__file__).resolve().parents[2]
 DATA = PROJECT.parent / "F题_清洗后" / "C_efficiency_evolution"
@@ -843,7 +844,8 @@ def write_report(flow: pd.DataFrame, links: pd.DataFrame, usable: pd.DataFrame,
                  rolling_audit: pd.DataFrame, rolling_metrics: pd.DataFrame,
                  family_influence: pd.DataFrame,
                  source_review: pd.DataFrame,
-                 source_compute: pd.DataFrame) -> None:
+                 source_compute: pd.DataFrame,
+                 c3_audit: dict) -> None:
     metric_cols = ["stratum", "variant", "n", "families", "train_n",
                    "future_holdout_n", "future_holdout_families", "future_holdout_rmse",
                    "future_holdout_family_balanced_rmse", "future_holdout_bias", "status"]
@@ -864,6 +866,11 @@ def write_report(flow: pd.DataFrame, links: pd.DataFrame, usable: pd.DataFrame,
              "2. **跨表连接：** C1/C4 只接受唯一 C4 名称、可支持的来源身份、参数量接近、发布日期可核、语言领域、Confident/Likely 且权重信息无冲突的连接。C4 给出 Hugging Face 开发者 ID 时须与 C1 命名空间一致；未给出 ID 时，同名候选在 C1 侧也须唯一。该表仅是非随机子样本，规则通过不等于人工逐项核验。",
              "3. **Loss 桥接和未来：** C6 高可比只有同一家族的 7 个 Pythia 点；C1 可比评分截至 2025-03，不能把问题三 Loss 换算成高分前沿，也没有 12/24 个月同协议回测。",
              "", "### 样本流失", "", tbl(flow), "",
+             "### C3 历史补录的口径审计", "",
+             "C3 的排行榜来源 4,573 条均可在 C1 按模型名找到，得分只相差两位小数舍入；C1 另有 3 条参数量缺失记录未进入 C3，名单见 `c3_c1_omitted_rows.csv`。26 条文献/报告补录记录提供更早年份，但其 `Average` 与六项任务均值并非同一计算口径。零任务分值不能自动解释为真实零分，也可能是未测。以下只量化来源覆盖和数值一致性，不把早期补录行拼接为 C1 同协议的回归或长期回测。",
+             "", tbl(c3_audit["summary"]), "",
+             "早期补录逐年覆盖如下；`usable_for_C1_protocol_trend=False` 表示不能凭这些值延长可比趋势，并不否认对应模型或文献存在。逐模型差异见 `c3_historical_row_audit.csv`。",
+             "", tbl(c3_audit["years"]), "",
              "许可证符合预设集合但权重状态缺失的模型，与权重状态明确为 No 的模型分别计数；后者不进入‘状态未知’敏感性层。",
              "", "### 提交日与 Epoch 元数据发布日期", "",
              "Epoch 元数据发布日期可能对应匹配的基础模型，不能直接等同于衍生模型发布时间；晚于提交日的日期更不能视为历史可得信息。下表仅审计两日期差异，主模型的时间变量仍是排行榜提交日。",
@@ -928,6 +935,7 @@ def write_report(flow: pd.DataFrame, links: pd.DataFrame, usable: pd.DataFrame,
 
 def main() -> None:
     data = load_contract()
+    c3_audit = audit_c3(data["C1"], data["C3"], RESULTS)
     panel, flow, publication_audit = prepare_panel(data["C2"])
     links, usable = link_c4(panel, data["C4"])
     c8_joined, c8 = process_c8(panel)
@@ -956,7 +964,7 @@ def main() -> None:
                  temporal_comparison, publication_audit,
                  pd.read_csv(RESULTS / "c4_manual_review_queue.csv"),
                  rolling_audit, rolling_metrics, family_influence,
-                 source_review, source_compute)
+                 source_review, source_compute, c3_audit)
     print(json.dumps({"strict_pretrained": int((panel.strict_open &
           panel.type_group.eq("pretrained")).sum()), "strict_posttrained": int((panel.strict_open &
           panel.type_group.eq("posttrained")).sum()), "C4_usable_compute": len(usable),

@@ -38,6 +38,8 @@ A1 领域质量中位数最低的三个领域：
 
 这些分数是本数据集、当前指标体系下的相对评价，不等同于实际训练收益。A2/A3 与 A1 共同域的差异应结合抽样设计解释，不能仅凭均值断言总体质量变化。
 
+原始文本抽样核验由独立脚本 `code/problem1/raw_text_audit.py` 完成：A1 七领域按质量分位与冲突度选取 49 条成对原文，检查 ID、领域、文本长度并保存可见文本特征。六条案例的前 360 字可见段落显示：高分并不保证没有版权前言，低分也不等于数学论文或代码无用；Wikipedia 高、低分位均出现非英语条目。抽样不是独立专家盲评，不估计总体准确率，不据此修改质量分或配比。详情见 `reports/问题一/验证验收/RAW_TEXT_AUDIT_PROBLEM1.md`。
+
 A2/A3 扩展样本复核：
 
 | domain | a1_n | extension_n | a1_quality_median | extension_quality_median | median_difference_extension_minus_a1 | a1_conflict_rate | extension_conflict_rate |
@@ -290,6 +292,7 @@ test_60m −0.012→0.120，test_1B 0.817。est 尺度反转幅度从主模型�
 - `outputs/problem1/quality/results/quality_metric_rules_weights.csv`：方向、缩放规则和 CRITIC 组内权重。
 - `outputs/problem1/quality/results/conflict_pair_summary.csv`：主要冲突对。
 - `outputs/problem1/quality/results/conflict_cause_profile.csv`：分领域冲突方向和指标驱动。
+- `outputs/problem1/quality/results/raw_text_stratified_audit.csv`、`raw_text_case_review.csv`：原始文本分层核验与具体案例。
 - `outputs/problem1/mixture/results/mixture_model_metrics.csv`、`mixture_predictions.csv`：训练、检验和外推结果。
 - `outputs/problem1/mixture/results/quality_domain_mapping.csv`、`quality_integration_ablation.csv`：A16 映射与 Q 增益检验。
 - `outputs/problem1/mixture/results/scale_aware_metrics.csv`：多尺度模型的独立及留一尺度检查。

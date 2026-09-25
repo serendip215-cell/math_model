@@ -1,0 +1,3 @@
+﻿source,rows,year_min,year_max,unique_models,exact_name_overlap_with_C1,max_nearest_C1_average_difference,median_abs_average_minus_six_mean,rows_abs_discrepancy_gt_0_01,rows_with_zero_task
+Open LLM Leaderboard,4573,2024,2025,4494,4573,0.004999925920792236,0.0024910084659133247,0,332
+Historical (papers/reports),26,2019,2024,26,0,,5.133333333333334,26,23
