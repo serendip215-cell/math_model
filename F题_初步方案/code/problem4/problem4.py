@@ -676,32 +676,76 @@ def conditional_scenarios(panel: pd.DataFrame, fits: dict, holdout: pd.DataFrame
     stratum = "strict_posttrained"
     sub = panel[panel.strict_open & panel.type_group.eq("posttrained")].copy()
     hist = monthly[(monthly.type_group == "posttrained") & (monthly.models >= 3)].copy()
-    if len(hist) < 4 or (stratum, "N_only") not in fits:
-        return save(pd.DataFrame([{"status": "insufficient_monthly_resource_history"}]),
-                    "conditional_frontier_scenarios.csv")
+    resource = pd.read_csv(RESULTS / "c4_standalone_resource_trend.csv").set_index("year")
+    linked = pd.read_csv(RESULTS / "c4_compute_linked_subset.csv")
+    if len(hist) < 4 or (stratum, "N_only") not in fits or not {2022, 2023, 2024, 2025}.issubset(resource.index):
+        raise ValueError("Insufficient attachment evidence to construct resource scenarios")
     month_dates = pd.to_datetime(hist.month)
     hist["month_index"] = (month_dates.dt.year - 2024) * 12 + month_dates.dt.month - 6
     rate = float(np.polyfit(hist.month_index, np.log10(hist.q90_N_B), 1)[0])
-    anchor = float(np.log10(hist.tail(3).q90_N_B.median()))
+    anchor_n = float(hist.tail(3).q90_N_B.median())
     hm = holdout[(holdout.stratum == stratum) & holdout.variant.isin(["N_only", "N_plus_time"])]
     temporal_gain = (len(hm) == 2 and all(
         hm.loc[hm.variant.eq("N_plus_time"), metric].iloc[0] <
         hm.loc[hm.variant.eq("N_only"), metric].iloc[0]
         for metric in ["future_holdout_rmse", "future_holdout_family_balanced_rmse"]))
-    # A negative empirical size trend does not identify a positive growth/slowdown
-    # path. A time term that loses on future holdout cannot support extrapolation.
-    identified = rate > 0 and temporal_gain and len(hist) >= 6
-    records = [{"origin": str(CUTOFF.date()), "horizon_months": months,
+    c22, c23, c24, c25 = [float(resource.loc[y, "median_compute_FLOPs"])
+                          for y in [2022, 2023, 2024, 2025]]
+    if min(c22, c23, c24, c25) <= 0:
+        raise ValueError("C4 annual median compute must be positive")
+    rates = sorted([math.log(c23 / c22), math.log(c24 / c23)])
+    # These are attachment-derived *conditional* growth choices, not estimates of
+    # an invariant compute law. 2025 is a partial cohort, used only as an anchor.
+    choices = [("stagnation", 0.0), ("slow_half_low", .5 * rates[0]),
+               ("slow_half_high", .5 * rates[1]),
+               ("historical_mid_reference", .5 * sum(rates))]
+    if not set(linked.type_group.eq("pretrained")) == {True}:
+        raise ValueError("C1/C4 paired compute sample now includes other model types")
+    source_review = pd.read_csv(RESULTS / "c4_external_source_review.csv")
+    supported_names = set(source_review.loc[
+        source_review.source_review_status.eq("source_supported_estimate"), "Model_C1"])
+    supported_linked = linked[linked.Model_C1.isin(supported_names)]
+    if len(supported_linked) != 15:
+        raise ValueError("Source-supported paired compute subset changed")
+    best_observed = float(sub.Y.max())
+    calibration = pd.DataFrame([{
+        "origin": str(CUTOFF.date()), "C4_anchor_cohort_year": 2025,
+        "C4_anchor_cohort_partial": True,
+        "C4_anchor_models_with_compute": int(resource.loc[2025, "compute_available"]),
+        "C4_anchor_median_compute_FLOPs": c25,
+        "C4_2022_to_2023_median_ratio": c23 / c22,
+        "C4_2023_to_2024_median_ratio": c24 / c23,
+        "paired_C1_C4_compute_models": len(linked),
+        "paired_strict_posttrained_compute_models": int(linked.type_group.eq("posttrained").sum()),
+        "source_supported_paired_models": len(supported_linked),
+        "source_supported_max_compute_FLOPs": float(supported_linked["Training compute (FLOP)"].max()),
+        "reference_exceeds_source_supported_compute_max": bool(
+            c25 > supported_linked["Training compute (FLOP)"].max()),
+        "observed_strict_posttrained_record_score": best_observed,
+        "interpretation": "cross_sectional_cohort_medians_not_validated_growth_law"}])
+    save(calibration, "conditional_scenario_calibration.csv")
+    records = []
+    for months in [12, 24]:
+        years = months / 12
+        for label, log_growth in choices:
+            future_compute = float(c25 * math.exp(log_growth * years))
+            records.append({"origin": str(CUTOFF.date()), "horizon_months": months,
                 "target_date": str((CUTOFF + pd.DateOffset(months=months)).date()),
-                "stratum": stratum, "monthly_q90_log10N_trend": rate,
-                "last_three_month_q90_N_B": 10 ** anchor,
+                "stratum": stratum, "scenario": label,
+                "annual_log_compute_growth_assumption": log_growth,
+                "annual_compute_multiplier_assumption": math.exp(log_growth),
+                "C4_reference_compute_FLOPs": c25,
+                "conditional_compute_FLOPs": future_compute,
+                "monthly_q90_log10N_trend": rate,
+                "last_three_month_q90_N_B": anchor_n,
                 "positive_growth_established": bool(rate > 0),
                 "time_model_improves_future_holdout": bool(temporal_gain),
                 "same_horizon_backtest_available": False,
+                "cumulative_frontier_logical_lower_score": best_observed,
+                "cumulative_frontier_logical_upper_score": 100.0,
+                "bound_type": "deterministic_logical_bound_not_confidence_interval",
                 "predicted_conditional_score": np.nan,
-                "status": "not_identified_no_positive_growth_or_validated_time_effect" if not identified
-                          else "not_identified_no_same_horizon_backtest"}
-               for months in [12, 24]]
+                "status": "compute_path_conditional_score_not_identified"})
     return save(pd.DataFrame(records), "conditional_frontier_scenarios.csv")
 
 
@@ -830,7 +874,26 @@ def draw_figures(panel: pd.DataFrame, flow: pd.DataFrame, monthly: pd.DataFrame,
         ax.legend(fontsize=8)
         save_figure(fig, "q4_short_horizon_rolling_validation.pdf")
 
-    # No long-horizon curve when growth and time extrapolation are unidentified.
+    # Plot only the C4 resource assumptions and the logical score identification
+    # region. There is deliberately no long-horizon score point or confidence band.
+    if len(scenarios) and "conditional_compute_FLOPs" in scenarios:
+        fig, (ax_c, ax_s) = plt.subplots(1, 2, figsize=(9, 3.5))
+        labels = {"stagnation": "Stagnation", "slow_half_low": "Half, lower year",
+                  "slow_half_high": "Half, higher year",
+                  "historical_mid_reference": "Historical midpoint"}
+        for key, grp in scenarios.groupby("scenario"):
+            ax_c.plot(grp.horizon_months, grp.conditional_compute_FLOPs / 1e23,
+                      marker="o", label=labels[key])
+        ax_c.set(xlabel="Months after 2025-03-13", ylabel="Conditional C4 cohort median (1e23 FLOPs)",
+                 title="Attachment-derived compute assumptions")
+        ax_c.set_xticks([12, 24]); ax_c.legend(fontsize=7)
+        lower = float(scenarios.cumulative_frontier_logical_lower_score.iloc[0])
+        ax_s.axhspan(lower, 100, color="#dbeafe", alpha=.75)
+        ax_s.axhline(lower, color="#2563eb", label="Observed cumulative record")
+        ax_s.set(xlabel="Months after 2025-03-13", ylabel="Six-task mean (%)",
+                 title="Logical bound; score forecast unidentified", ylim=(0, 100))
+        ax_s.set_xticks([12, 24]); ax_s.legend(fontsize=7)
+        fig.tight_layout(); save_figure(fig, "q4_compute_scenario_identification.pdf")
 
 
 def write_report(flow: pd.DataFrame, links: pd.DataFrame, usable: pd.DataFrame,
@@ -850,9 +913,10 @@ def write_report(flow: pd.DataFrame, links: pd.DataFrame, usable: pd.DataFrame,
                    "future_holdout_n", "future_holdout_families", "future_holdout_rmse",
                    "future_holdout_family_balanced_rmse", "future_holdout_bias", "status"]
     metrics_view = fit_metrics.reindex(columns=metric_cols)
-    scenario_view = scenarios.reindex(columns=["horizon_months", "monthly_q90_log10N_trend",
-        "positive_growth_established", "time_model_improves_future_holdout",
-        "same_horizon_backtest_available", "predicted_conditional_score", "status"])
+    scenario_view = scenarios.reindex(columns=["horizon_months", "scenario",
+        "annual_compute_multiplier_assumption", "conditional_compute_FLOPs",
+        "cumulative_frontier_logical_lower_score", "cumulative_frontier_logical_upper_score",
+        "predicted_conditional_score", "status"])
     screened = rolling_metrics.loc[rolling_metrics.descriptive_screen_pass &
                                    rolling_metrics.stratum.eq("strict_posttrained")]
     comparison = screened.pivot(index="target_month", columns="variant",
@@ -924,9 +988,13 @@ def write_report(flow: pd.DataFrame, links: pd.DataFrame, usable: pd.DataFrame,
               tbl(monthly[["type_group", "month", "models", "families", "max_score", "q90_score"]]), "",
               "## Loss 桥接", "",
               f"C6 高可比 n={bridge_info['high_n']}、独立家族 1。Loss 范围 {bridge_info['high_loss_range']}，得分范围 {bridge_info['high_score_range']}。逐点留一单调映射 RMSE={bridge_info['loo_monotone_rmse']:.4f}，常数基线 RMSE={bridge_info['loo_constant_rmse']:.4f}。这个留一不检验跨家族泛化；前沿数值桥接未识别。",
-              "", "## 12/24 个月条件情景", "",
-              "观测月度高分位参数量趋势为负，不能据此定义正增长放缓；含时间模型的未来时段留出也不优于仅规模模型。因此不计算 12/24 个月得分，避免把缺少支持的外推数值误当预测。这里的增长率是参数量口径，不是训练算力。",
-              "", tbl(scenario_view), "", "## 图表与可复算文件", "",
+              "", "## 12/24 个月算力放缓条件情景与能力边界", "",
+              "算力情景仅用题给 C4：在权重明确开放、语言领域、来源为 Confident/Likely 且发布日期不晚于 2025-03-13 的记录中，取 2025 年截至该日的**不完整年份样本中位算力**作参考。历史增速来自 2022→2023 与 2023→2024 各年度样本中位数的比值；停滞、两种增速减半、历史增速中点是明确的条件假设，不是概率预测或真实算力上限。年度样本组成变化会影响中位数，不能把这一增速解释为同一家族的算力增长规律。",
+              "", tbl(pd.read_csv(RESULTS / "conditional_scenario_calibration.csv")), "",
+              "下表给出从 C1 最后同口径日 2025-03-13 起算的 12/24 个月条件算力路径。`conditional_compute_FLOPs` 是在该参考样本中位数上套用增长假设的算术结果，不是未来实际观测。",
+              "", tbl(scenario_view), "",
+              "能力列的下界是截至起点已观测的严格开放后训练模型累计最高分；上界 100 是六任务百分制的逻辑上限。这个区间不是置信区间，也不是具有预测力的窄界。C1/C4 可靠连接的 29 条算力—得分记录全部为预训练模型，严格开放后训练的成对记录为 0；来源进一步支持的 15 条配对记录最高算力仍低于本情景的 C4 参考算力，从起点就已越出其支持域。C1 月度高分位参数量趋势为负，含时间模型的未来时段留出也未胜过仅规模模型。因此附件尚不能识别算力放缓对后训练能力前沿的数值影响，`predicted_conditional_score` 保持空值。图 `q4_compute_scenario_identification.pdf` 分开展示资源假设和能力识别范围，不绘制虚构的能力预测曲线。",
+              "", "## 图表与可复算文件", "",
               "图表在 `outputs/problem4/figures/`，全部由同一脚本生成。原始合同、连接逐行理由、C8 文件审计、留出指标、分解支持和重抽样、资源情景均在 `outputs/problem4/results/`。",
               "", "## 结论边界", "",
               "排行榜提交不是随机实验，也不等于模型发布日期；主结果按题目附件原始字段计算，仅覆盖许可证和权重可核的模型。严格开放预训练的晚期样本较少。粗粒度家族划分与模型重复提交可能缩小有效样本量。外部来源核查只作补充敏感性，不改写主模型标签；也未取得逐 checkpoint 身份或完整训练遥测。C8 与 C1 BBH 标尺不同。C6 桥接不支持前三问 Loss 向当前或未来排行榜前沿转译。长期情景没有同长度回测；不得写成已经验证的预测。", ""]

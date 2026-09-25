@@ -1,6 +1,6 @@
 # 问题四独立验收
 
-通过 55/55 项。
+通过 59/59 项。
 
 | 检查 | 结果 | 说明 |
 | --- | --- | --- |
@@ -56,9 +56,13 @@
 | Overlap-only fit decomposition additive | 通过 |  |
 | Bridge high only seven and no frontier translation | 通过 |  |
 | Bridge LOO RMSE | 通过 |  |
+| Compute scenario anchor and growth ratios from C4 | 通过 |  |
+| Source-supported compute is below scenario reference | 通过 |  |
+| Complete 12 and 24 month assumption grid | 通过 |  |
+| Scenario FLOPs reproduce conditional arithmetic | 通过 |  |
+| Logical score bound uses observed cumulative record | 通过 |  |
 | No unsupported future score emitted | 通过 |  |
-| Scenario negative size trend recorded | 通过 |  |
-| Scenario time model holdout gate failed | 通过 |  |
+| Scenario negative size trend and time gate recorded | 通过 |  |
 
 ## 验收范围
 

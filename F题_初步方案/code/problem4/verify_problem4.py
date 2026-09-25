@@ -276,10 +276,48 @@ def main() -> None:
           loo.LB_Average) ** 2)), bridge["loo_monotone_rmse"]))
 
     scenario = read("conditional_frontier_scenarios.csv")
+    calibration = read("conditional_scenario_calibration.csv").iloc[0]
+    raw_c4["publication"] = pd.to_datetime(raw_c4["Publication date"], errors="coerce")
+    raw_c4["compute"] = pd.to_numeric(raw_c4["Training compute (FLOP)"], errors="coerce")
+    c4_eligible = raw_c4[raw_c4.Domain.fillna("").str.contains("Language", case=False) &
+                         raw_c4["Open model weights?"].eq("Yes") &
+                         raw_c4.Confidence.isin(["Confident", "Likely"]) &
+                         raw_c4.publication.between("2019-01-01", "2025-03-13")]
+    med = c4_eligible.groupby(c4_eligible.publication.dt.year).compute.median()
+    check("Compute scenario anchor and growth ratios from C4",
+          np.isclose(calibration.C4_anchor_median_compute_FLOPs, med.loc[2025]) and
+          np.isclose(calibration.C4_2022_to_2023_median_ratio, med.loc[2023] / med.loc[2022]) and
+          np.isclose(calibration.C4_2023_to_2024_median_ratio, med.loc[2024] / med.loc[2023]) and
+          int(calibration.C4_anchor_models_with_compute) == int(c4_eligible.loc[
+              c4_eligible.publication.dt.year.eq(2025), "compute"].gt(0).sum()))
+    supported_names = set(source_review.loc[
+        source_review.source_review_status.eq("source_supported_estimate"), "Model_C1"])
+    supported_linked = read("c4_compute_linked_subset.csv")
+    supported_linked = supported_linked[supported_linked.Model_C1.isin(supported_names)]
+    check("Source-supported compute is below scenario reference",
+          len(supported_linked) == int(calibration.source_supported_paired_models) == 15 and
+          np.isclose(supported_linked["Training compute (FLOP)"].max(),
+                     calibration.source_supported_max_compute_FLOPs) and
+          bool(calibration.reference_exceeds_source_supported_compute_max) and
+          calibration.C4_anchor_median_compute_FLOPs >
+          calibration.source_supported_max_compute_FLOPs)
+    check("Complete 12 and 24 month assumption grid", len(scenario) == 8 and
+          set(scenario.horizon_months) == {12, 24} and scenario.groupby("horizon_months").scenario.nunique().eq(4).all())
+    check("Scenario FLOPs reproduce conditional arithmetic", np.allclose(
+          scenario.conditional_compute_FLOPs,
+          calibration.C4_anchor_median_compute_FLOPs * np.exp(
+              scenario.annual_log_compute_growth_assumption * scenario.horizon_months / 12)))
+    strict_post = panel[panel.strict_open & panel.type_group.eq("posttrained")]
+    check("Logical score bound uses observed cumulative record", np.allclose(
+          scenario.cumulative_frontier_logical_lower_score, strict_post.Y.max()) and
+          scenario.cumulative_frontier_logical_upper_score.eq(100).all() and
+          scenario.bound_type.eq("deterministic_logical_bound_not_confidence_interval").all())
     check("No unsupported future score emitted", scenario.predicted_conditional_score.isna().all()
-          and not scenario.same_horizon_backtest_available.any())
-    check("Scenario negative size trend recorded", scenario.monthly_q90_log10N_trend.lt(0).all())
-    check("Scenario time model holdout gate failed", not scenario.time_model_improves_future_holdout.any())
+          and not scenario.same_horizon_backtest_available.any() and
+          int(calibration.paired_strict_posttrained_compute_models) == 0)
+    check("Scenario negative size trend and time gate recorded",
+          scenario.monthly_q90_log10N_trend.lt(0).all() and
+          not scenario.time_model_improves_future_holdout.any())
 
     lines = ["# 问题四独立验收", "", f"通过 {sum(ok for _, ok, _ in checks)}/{len(checks)} 项。", "",
              "| 检查 | 结果 | 说明 |", "| --- | --- | --- |"]

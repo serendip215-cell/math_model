@@ -256,14 +256,28 @@ C4 连接子样本只报告关联与按家族重抽样的 Spearman 区间，不�
 
 C6 高可比 n=7、独立家族 1。Loss 范围 [2.0933, 2.5978]，得分范围 [5.07026822083096, 6.059841492942702]。逐点留一单调映射 RMSE=0.4366，常数基线 RMSE=0.4244。这个留一不检验跨家族泛化；前沿数值桥接未识别。
 
-## 12/24 个月条件情景
+## 12/24 个月算力放缓条件情景与能力边界
 
-观测月度高分位参数量趋势为负，不能据此定义正增长放缓；含时间模型的未来时段留出也不优于仅规模模型。因此不计算 12/24 个月得分，避免把缺少支持的外推数值误当预测。这里的增长率是参数量口径，不是训练算力。
+算力情景仅用题给 C4：在权重明确开放、语言领域、来源为 Confident/Likely 且发布日期不晚于 2025-03-13 的记录中，取 2025 年截至该日的**不完整年份样本中位算力**作参考。历史增速来自 2022→2023 与 2023→2024 各年度样本中位数的比值；停滞、两种增速减半、历史增速中点是明确的条件假设，不是概率预测或真实算力上限。年度样本组成变化会影响中位数，不能把这一增速解释为同一家族的算力增长规律。
 
-| horizon_months | monthly_q90_log10N_trend | positive_growth_established | time_model_improves_future_holdout | same_horizon_backtest_available | predicted_conditional_score | status |
-| --- | --- | --- | --- | --- | --- | --- |
-| 12 | -0.044288 | False | False | False |  | not_identified_no_positive_growth_or_validated_time_effect |
-| 24 | -0.044288 | False | False | False |  | not_identified_no_positive_growth_or_validated_time_effect |
+| origin | C4_anchor_cohort_year | C4_anchor_cohort_partial | C4_anchor_models_with_compute | C4_anchor_median_compute_FLOPs | C4_2022_to_2023_median_ratio | C4_2023_to_2024_median_ratio | paired_C1_C4_compute_models | paired_strict_posttrained_compute_models | source_supported_paired_models | source_supported_max_compute_FLOPs | reference_exceeds_source_supported_compute_max | observed_strict_posttrained_record_score | interpretation |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 2025-03-13 | 2025 | True | 22 | 5.7144e+23 | 2.0769 | 3.4472 | 29 | 0 | 15 | 2.94e+23 | True | 46.889 | cross_sectional_cohort_medians_not_validated_growth_law |
+
+下表给出从 C1 最后同口径日 2025-03-13 起算的 12/24 个月条件算力路径。`conditional_compute_FLOPs` 是在该参考样本中位数上套用增长假设的算术结果，不是未来实际观测。
+
+| horizon_months | scenario | annual_compute_multiplier_assumption | conditional_compute_FLOPs | cumulative_frontier_logical_lower_score | cumulative_frontier_logical_upper_score | predicted_conditional_score | status |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 12 | stagnation | 1 | 5.7144e+23 | 46.889 | 100 |  | compute_path_conditional_score_not_identified |
+| 12 | slow_half_low | 1.4411 | 8.2352e+23 | 46.889 | 100 |  | compute_path_conditional_score_not_identified |
+| 12 | slow_half_high | 1.8567 | 1.061e+24 | 46.889 | 100 |  | compute_path_conditional_score_not_identified |
+| 12 | historical_mid_reference | 2.6757 | 1.529e+24 | 46.889 | 100 |  | compute_path_conditional_score_not_identified |
+| 24 | stagnation | 1 | 5.7144e+23 | 46.889 | 100 |  | compute_path_conditional_score_not_identified |
+| 24 | slow_half_low | 1.4411 | 1.1868e+24 | 46.889 | 100 |  | compute_path_conditional_score_not_identified |
+| 24 | slow_half_high | 1.8567 | 1.9699e+24 | 46.889 | 100 |  | compute_path_conditional_score_not_identified |
+| 24 | historical_mid_reference | 2.6757 | 4.0911e+24 | 46.889 | 100 |  | compute_path_conditional_score_not_identified |
+
+能力列的下界是截至起点已观测的严格开放后训练模型累计最高分；上界 100 是六任务百分制的逻辑上限。这个区间不是置信区间，也不是具有预测力的窄界。C1/C4 可靠连接的 29 条算力—得分记录全部为预训练模型，严格开放后训练的成对记录为 0；来源进一步支持的 15 条配对记录最高算力仍低于本情景的 C4 参考算力，从起点就已越出其支持域。C1 月度高分位参数量趋势为负，含时间模型的未来时段留出也未胜过仅规模模型。因此附件尚不能识别算力放缓对后训练能力前沿的数值影响，`predicted_conditional_score` 保持空值。图 `q4_compute_scenario_identification.pdf` 分开展示资源假设和能力识别范围，不绘制虚构的能力预测曲线。
 
 ## 图表与可复算文件
 
