@@ -1,25 +1,47 @@
 % !TEX program = xelatex
-% 中国研究生数学建模竞赛 F 题论文初稿；数据与结果来自题目附件。
+% 华为杯 LaTeX 模板风格的匿名论文草稿；数据与结果来自题目附件。
 \documentclass[fontset=windows,12pt,a4paper]{ctexart}
-\usepackage[a4paper,top=27mm,bottom=25mm,left=23mm,right=23mm]{geometry}
+\usepackage[a4paper,top=30mm,bottom=25mm,left=22.5mm,right=22.5mm]{geometry}
 \usepackage{amsmath,amssymb,booktabs,array,graphicx,float,hyperref}
-\usepackage{caption}
+\usepackage{caption,titlesec,tocloft}
 \hypersetup{colorlinks=false,pdfborder={0 0 0}}
 \captionsetup{font=small}
 \setlength{\parindent}{2em}
 \linespread{1.35}
 \graphicspath{{../outputs/}}
+\titleformat{\section}{\centering\fontsize{14pt}{17pt}\heiti\bfseries}{\thesection.}{1em}{}
+\titleformat{\subsection}{\fontsize{12pt}{15pt}\heiti\bfseries}{\thesubsection}{1em}{}
+\renewcommand{\cftsecfont}{\heiti\bfseries}
+\renewcommand{\cftsecpagefont}{\heiti\bfseries}
 \newcommand{\fig}[3]{\begin{figure}[htbp]\centering\includegraphics[width=#2\linewidth]{#1}\caption{#3}\end{figure}}
-\title{算力约束下大语言模型能力提升的资源配置建模\\\large 基于题目附件的质量、配比、标度与开放模型证据}
-\author{}
-\date{}
+% 真实学校、队号和姓名由参赛队在提交前填写；本稿不虚构身份。
+\newcommand{\coverpage}{%
+  \thispagestyle{empty}%
+  \begin{center}
+    \includegraphics[width=14.5cm]{logo.pdf}\\[1.2cm]
+    \includegraphics[width=10.8cm]{title.pdf}\\[1.5cm]
+    {\fontsize{20pt}{26pt}\heiti\bfseries 算力约束下大语言模型能力提升的资源配置建模}\\[1.4cm]
+    \begin{tabular}{p{4.1cm}p{8.6cm}}
+    \heiti 学校 & \rule{8cm}{0.4pt}\\[0.45cm]
+    \heiti 参赛队号 & \rule{8cm}{0.4pt}\\[0.45cm]
+    \heiti 队员姓名 & \rule{8cm}{0.4pt}\\[0.45cm]
+    \end{tabular}
+  \end{center}
+  \newpage
+  \setcounter{page}{1}%
+}
 \begin{document}
-\maketitle
+\coverpage
+\begin{center}
+  \includegraphics[width=10.8cm]{title.pdf}\\[0.55cm]
+  {\fontsize{16pt}{20pt}\heiti\bfseries 算力约束下大语言模型能力提升的资源配置建模}
+\end{center}
 \begin{abstract}
 针对题目提出的数据质量评价、训练标度、资源配置与开放模型能力前沿四个问题，本文按附件证据类型建立可复算的分层模型，并明确跨附件不能识别的关系。问题一对 A1--A3 共 272505 条记录的 22 项指标构造四组稳健质量分，分析指标冲突；对 17 域训练配比采用二次 ILR 岭回归，独立 1M 测试的平均 Loss 均方根误差为 0.2319、Spearman 相关为 0.6659。推荐配比取 52 个实测优良配方的质心，不称其为全局最优。问题二基于 B1 的 1176 个检查点拟合参数量--数据量标度律，再用 B6 半合成数据分组验证质量修正结构；两项均受质量因子作用的候选模型取得 0.0595 的分组交叉验证误差。第一问质量分 $Q_A$ 与 B6 的 $Q_B$ 缺少成对标定，故不将二者直接代入同一数值式。问题三固定第一问配比候选，在观测支持域内求解不同预算的 $(N,D,Q_B)$；$10^{24}$ FLOPs 情景有 97.58\% 预算未用，原因是支持域上界而非实际高预算配置最优。问题四在严格开放筛选下分别分析预训练与后训练模型；现有可比数据不能支持可靠的 12/24 个月能力分数预测，因此只给出题目附件支持的条件算力路径与能力识别边界。
 
 \noindent\textbf{关键词：}数据质量；组成数据；标度律；算力配置；部分识别；开放模型
 \end{abstract}
+\newpage
 \tableofcontents
 \newpage
 \input{sections/1_problem_and_data}
@@ -29,7 +51,6 @@
 \input{sections/5_problem4}
 \input{sections/6_validation}
 \input{sections/7_conclusion}
-
 \begin{thebibliography}{9}
 \bibitem{problem} 第二十三届中国研究生数学建模竞赛 F 题. 算力约束下提升大语言模型能力的资源配置建模及随题附件.
 \bibitem{aitchison} Aitchison J. The Statistical Analysis of Compositional Data. Chapman and Hall, 1986.

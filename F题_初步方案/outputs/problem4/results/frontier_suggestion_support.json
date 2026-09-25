@@ -1,0 +1,16 @@
+{
+  "bridge_high_rows": 7,
+  "bridge_medium_rows": 68,
+  "bridge_medium_source_labels": 30,
+  "bridge_medium_median_rows_per_source": 2.0,
+  "bridge_medium_singleton_source_labels": 14,
+  "linked_compute_rows": 29,
+  "linked_compute_positive_dataset_size_rows": 19,
+  "linked_compute_posttrained_rows": 0,
+  "strict_open_definition_unchanged": true,
+  "unknown_weight_layer_is_sensitivity_only": true,
+  "quantile_cv_selected_variant": "N_time",
+  "task_raw_six_mean_change_points": 3.356053074986173,
+  "task_robust_standardized_change_iqr_units": 0.20207326595443223,
+  "task_robust_standardized_change_without_math_iqr_units": 0.1180917183312074
+}
